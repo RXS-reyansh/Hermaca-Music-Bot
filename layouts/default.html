@@ -1,13 +1,25 @@
+---
+---
+
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8">
     <title>{{ page.title }} | Hermaca Music Bot</title>
-    <link rel="icon" type="image/png" href="{{ '/favicon.png' | relative_url }}">
-    <!-- Include your theme's default styles -->
-    <link rel="stylesheet" href="{{ '/assets/css/style.css' | relative_url }}">
+    <link rel="icon" type="image/png" href="../favicon.png">
+    
+    <!-- This loads your theme's CSS automatically -->
+    <link rel="stylesheet" href="{{ site.baseurl }}/assets/css/style.css">
   </head>
   <body>
-    {{ content }}
+    {% include header.html %}
+    
+    <main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        {{ content }}
+      </div>
+    </main>
+    
+    {% include footer.html %}
   </body>
 </html>
