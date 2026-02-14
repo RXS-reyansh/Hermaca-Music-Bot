@@ -75,6 +75,7 @@ A feature-rich Discord music bot built with Discord.js, Riffy, and Lavalink. Thi
 ###### Thanks to anvesha.67 for using the commands of the bot and providing these beautiful screenshots!
 
 <hr>
+
 ## .env file format
 
 ```
