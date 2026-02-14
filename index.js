@@ -71,7 +71,6 @@ async function getHostingServiceIP() {
         let currentService = 0;
 
         const hostingServices = {
-
             'Asterix': '89.106.84.76',
             'Heaven': '23.153.72.157'
         };
@@ -2373,7 +2372,7 @@ async function handlePing(context, isInteraction = false) {
             await context.editReply({ embeds: [embed] });
             
         } else {
-            return await messages.ping(context.channel, client, context);
+                await messages.ping(context.channel, client, context, client.hostingService);
         }
         
     } catch (error) {
@@ -3878,7 +3877,7 @@ async function handlePrefixCommand(message, cmd, args) {
 			}
 			
 			case 'say': {
-				const rawText = message.content.slice(client.prefix.length + command.length).replace(/^\s+/, '');
+				const rawText = message.content.slice(client.prefix.length + cmd.length).replace(/^\s+/, '');
 				if (!rawText) {
 					return message.reply(`${emojis.error} | You need to provide something to say!`)
 						.catch(() => {});

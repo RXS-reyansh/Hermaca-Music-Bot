@@ -395,7 +395,7 @@ module.exports = {
             .setFooter({ text: 'Prefix: ~ • Example: ~play <song name>' });
         return channel.send({ embeds: [embed] });
     },
-	ping: async function(channel, client, context) {
+	ping: async function(channel, client, context, hostingService) {
 		try {
 			const startTime = Date.now();
 			const tempMsg = await channel.send('🏓 Pinging...');
@@ -415,6 +415,8 @@ module.exports = {
 			const config = require("../config.js");
 			const emojis = require("../emojis.js");
 			
+			const hostingText = hostingService ? `Powered by ${hostingService} Hosting` : "Powered by Asterix Hosting";
+			
 			const embed = new EmbedBuilder()
 				.setColor(config.embedColor)
 				.setTitle(`${emojis.redblackcross} Cluster ${clusterId}`)
@@ -423,7 +425,7 @@ module.exports = {
 					value: `• Discord REST latency: \`${restLatency}ms\`\n• Discord Gateway (WS) latency: \`${wsLatency}ms\` (Shard ${shardId})`,
 					inline: false
 				})
-				.setFooter({ text: "Database on MongoDB • Powered by Heaven Hosting" })
+				.setFooter({ text: `Database on MongoDB • ${hostingText}` })
 				.setTimestamp();
 			await tempMsg.delete().catch(() => {});
 			await channel.send({ embeds: [embed] });
