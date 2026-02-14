@@ -533,30 +533,40 @@ async function createSongQuoteImage(track, text) {
         ctx.stroke();
         ctx.shadowBlur = 0;
         
-        // === SONG TITLE WITH DYNAMIC GRADIENT ===
-        const titleY = albumY + albumSize + 50;
-        const titleGradient = ctx.createLinearGradient(
-            leftWidth / 2 - 150, titleY,
-            leftWidth / 2 + 150, titleY
-        );
-        titleGradient.addColorStop(0, color1);
-        titleGradient.addColorStop(0.5, color2);
-        titleGradient.addColorStop(1, color1);
-        
-        ctx.font = 'bold 36px "Poppins", "Arial", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillStyle = titleGradient;
-        
-        const songTitle = track.info.title.length > 30 
-            ? track.info.title.substring(0, 27) + '...' 
-            : track.info.title;
-        ctx.fillText(songTitle, leftWidth / 2, titleY);
-        
-        // Artist name (using a lighter version of the vibrant color)
-        ctx.font = '24px "Poppins", "Arial", sans-serif';
-        ctx.fillStyle = color1;
-        const artist = track.info.author || 'Unknown Artist';
-        ctx.fillText(`by ${artist}`, leftWidth / 2, titleY + 40);
+		// === SONG TITLE WITH WRAPPING ===
+		// Create gradient for title (defined here, not outside)
+		const titleGradient = ctx.createLinearGradient(
+			leftWidth / 2 - 150, albumY + albumSize + 50,
+			leftWidth / 2 + 150, albumY + albumSize + 50
+		);
+		titleGradient.addColorStop(0, color1);
+		titleGradient.addColorStop(0.5, color2);
+		titleGradient.addColorStop(1, color1);
+
+		const titleFontSize = 36;
+		const titleLineHeight = titleFontSize * 1.4;
+		const titleMaxWidth = leftWidth - 60; // margin from edges
+		ctx.font = `bold ${titleFontSize}px "Poppins", "Arial", sans-serif`;
+		ctx.textAlign = 'center';
+		ctx.fillStyle = titleGradient;
+
+		// Wrap the title
+		const titleLines = wrapText(ctx, track.info.title, titleMaxWidth, titleFontSize);
+		const titleTotalHeight = titleLines.length * titleLineHeight;
+
+		// Position title block (below album art)
+		const titleY = albumY + albumSize + 50;
+
+		// Draw each line
+		titleLines.forEach((line, i) => {
+			ctx.fillText(line, leftWidth / 2, titleY + i * titleLineHeight);
+		});
+
+		// Artist below title block
+		ctx.font = '24px "Poppins", "Arial", sans-serif';
+		ctx.fillStyle = color1;
+		const artist = track.info.author || 'Unknown Artist';
+		ctx.fillText(`by ${artist}`, leftWidth / 2, titleY + titleTotalHeight + 30);
         
         // === RIGHT SIDE OVERLAY ===
         ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';

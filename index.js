@@ -1427,42 +1427,111 @@ client.on(Events.InteractionCreate, async interaction => {
                 break;
             }
             case 'song-quote': {
-                const text = options.getString('text');
-                const player = client.riffy.players.get(guild.id);
-                if (!player || !player.current) {
-                    return await interaction.editReply(`${emojis.error} | No track is currently playing!`);
-                }
-                
-                try {
-                    await interaction.editReply(`${emojis.loading} | Generating your song quote...`);
-                    
-                    const { createSongQuoteImage } = require("./utils/imageGenerator");
-                    const track = player.current;
-                    const imageBuffer = await createSongQuoteImage(track, text);
-                    const { AttachmentBuilder } = require('discord.js');
-                    const attachment = new AttachmentBuilder(imageBuffer, { name: 'song-quote.png' });
-                    const embed = new EmbedBuilder()
-                        .setColor(config.embedColor)
-                        .setTitle(`${emojis.blackbutterfly} Song Quote Generated`)
-                        .setDescription(`**${track.info.title}** - ${track.info.author || 'Unknown Artist'}`)
-                        .setImage('attachment://song-quote.png')
-                        .setFooter({ 
-                            text: `Requested by ${interaction.user.tag}`,
-                            iconURL: interaction.user.displayAvatarURL()
-                        })
-                        .setTimestamp();
-                    
-                    await interaction.editReply({ 
-                        content: null,
-                        embeds: [embed], 
-                        files: [attachment] 
-                    });
-                } catch (error) {
-                    console.error('Song quote error:', error);
-                    await interaction.editReply(`${emojis.error} | Failed to generate song quote: ${error.message}`);
-                }
-                break;
-            }
+				const text = options.getString('text');
+				const player = client.riffy.players.get(guild.id);
+				if (!player || !player.current) {
+					return await interaction.editReply(`${emojis.error} | No track is currently playing!`);
+				}
+
+				try {
+					await interaction.editReply(`${emojis.loading} | Generating your song quote...`);
+
+					const { createSongQuoteImage } = require("./utils/imageGenerator");
+					const track = player.current;
+					const imageBuffer = await createSongQuoteImage(track, text);
+					const { AttachmentBuilder } = require('discord.js');
+					const attachment = new AttachmentBuilder(imageBuffer, { name: 'song-quote.png' });
+
+					const embed = new EmbedBuilder()
+						.setColor(config.embedColor)
+						.setTitle(`${emojis.blackbutterfly} Song Quote Generated`)
+						.setDescription(`**${track.info.title}** - ${track.info.author || 'Unknown Artist'}`)
+						.setImage('attachment://song-quote.png')
+						.setFooter({
+							text: `Requested by ${interaction.user.tag}`,
+							iconURL: interaction.user.displayAvatarURL()
+						})
+						.setTimestamp();
+
+					await interaction.editReply({
+						content: null,
+						embeds: [embed],
+						files: [attachment]
+					});
+
+					const reply = await interaction.fetchReply();
+
+					const getAttachmentUrlWithRetry = async (msg, maxRetries = 10, delayMs = 1000) => {
+						for (let attempt = 1; attempt <= maxRetries; attempt++) {
+							if (msg.attachments && msg.attachments.size > 0) {
+								return msg.attachments.first().url;
+							}
+							if (msg.embeds && msg.embeds.length > 0 && msg.embeds[0].image && msg.embeds[0].image.url) {
+								return msg.embeds[0].image.url;
+							}
+							await new Promise(resolve => setTimeout(resolve, delayMs));
+							try {
+								msg = await interaction.fetchReply();
+							} catch (fetchError) {
+								console.warn(`Attachment fetch attempt ${attempt} failed:`, fetchError.message);
+							}
+						}
+						throw new Error('Failed to retrieve attachment URL after multiple attempts');
+					};
+
+					const attachmentUrl = await getAttachmentUrlWithRetry(reply);
+
+					const row = new ActionRowBuilder()
+						.addComponents(
+							new ButtonBuilder()
+								.setLabel('Download')
+								.setStyle(ButtonStyle.Link)
+								.setURL(attachmentUrl),
+							new ButtonBuilder()
+								.setCustomId(`song_quote_dm_${interaction.user.id}`)
+								.setLabel('Send in DM')
+								.setStyle(ButtonStyle.Secondary)
+						);
+
+					await interaction.editReply({ components: [row] });
+
+					const filter = i => i.customId === `song_quote_dm_${interaction.user.id}` && i.user.id === interaction.user.id;
+					const collector = reply.createMessageComponentCollector({ filter, time: 60000 });
+
+					collector.on('collect', async i => {
+						try {
+							const dmEmbed = new EmbedBuilder()
+								.setColor(config.embedColor)
+								.setTitle(`${emojis.blackbutterfly} Song Quote Generated`)
+								.setDescription(`**${track.info.title}** - ${track.info.author || 'Unknown Artist'}`)
+								.setImage(attachmentUrl)
+								.setFooter({ text: `Requested by ${i.user.tag}` })
+								.setTimestamp();
+
+							await i.user.send({ embeds: [dmEmbed] });
+							await i.reply({ content: `${emojis.success} Image sent to your DMs!`, ephemeral: true });
+						} catch (error) {
+							await i.reply({
+								content: `${emojis.error} Could not send you a DM. Please make sure your DMs are open.`,
+								ephemeral: true
+							});
+						}
+					});
+
+					collector.on('end', async () => {
+						const disabledRow = new ActionRowBuilder().addComponents(
+							ButtonBuilder.from(row.components[0]),
+							ButtonBuilder.from(row.components[1]).setDisabled(true)
+						);
+						await interaction.editReply({ components: [disabledRow] }).catch(() => {});
+					});
+
+				} catch (error) {
+					console.error('Song quote error:', error);
+					await interaction.editReply(`${emojis.error} | Failed to generate song quote: ${error.message}`);
+				}
+				break;
+			}
             case 'mystats': {
                 try {
                     const userStats = await db.getUserStats(interaction.user.id);
@@ -2678,62 +2747,146 @@ function createPingEmbed(restLatency, wsLatency, clusterId, shard) {
         .setTimestamp();
 }
 async function handleSongQuote(context, rawText, isInteraction = false) {
-
     const processedText = rawText
         .replace(/\\\\n/g, '\u0000')
         .replace(/\\n/g, '\n')
         .replace(/\u0000/g, '\\n');
 
-
     const guild = isInteraction ? context.guild : context.guild;
     const player = client.riffy.players.get(guild.id);
-    
+
     if (!player || !player.current) {
         return await sendResponse(context, `${emojis.error} | No track is currently playing!`, isInteraction);
     }
-    
+
     try {
         const { createSongQuoteImage } = require("./utils/imageGenerator");
         const track = player.current;
+
         let loadingMessage;
         if (isInteraction) {
-            await context.editReply({ 
-                content: `${emojis.loading} | Generating your song quote...` 
-            });
+            await context.editReply({ content: `${emojis.loading} | Generating your song quote...` });
         } else {
             loadingMessage = await context.channel.send(`${emojis.loading} | Generating your song quote...`);
         }
+
         const imageBuffer = await createSongQuoteImage(track, processedText);
         const { AttachmentBuilder } = require('discord.js');
         const attachment = new AttachmentBuilder(imageBuffer, { name: 'song-quote.png' });
+
         const embed = new EmbedBuilder()
             .setColor(config.embedColor)
             .setTitle(`${emojis.blackbutterfly} Song Quote Generated`)
             .setDescription(`**${track.info.title}** - ${track.info.author || 'Unknown Artist'}`)
             .setImage('attachment://song-quote.png')
-            .setFooter({ 
+            .setFooter({
                 text: `Requested by ${isInteraction ? context.user.tag : context.author.tag}`,
                 iconURL: isInteraction ? context.user.displayAvatarURL() : context.author.displayAvatarURL()
             })
             .setTimestamp();
+
+        let sentMessage;
         if (isInteraction) {
-            await context.editReply({ 
-                content: null,
-                embeds: [embed], 
-                files: [attachment] 
-            });
+            await context.editReply({ content: null, embeds: [embed], files: [attachment] });
+            sentMessage = await context.fetchReply();
         } else {
             if (loadingMessage) {
                 setTimeout(() => {
                     loadingMessage.delete().catch(() => {});
                 }, 2000);
             }
-            await context.channel.send({ 
-                embeds: [embed], 
-                files: [attachment] 
-            });
+            sentMessage = await context.channel.send({ embeds: [embed], files: [attachment] });
         }
-        
+
+        // --- ROBUST ATTACHMENT URL RETRIEVAL (with embed fallback) ---
+        const getAttachmentUrlWithRetry = async (msg, maxRetries = 10, delayMs = 1000) => {
+            for (let attempt = 1; attempt <= maxRetries; attempt++) {
+                // Check attachments first
+                if (msg.attachments && msg.attachments.size > 0) {
+                    return msg.attachments.first().url;
+                }
+                // If no attachments, check embed image URL
+                if (msg.embeds && msg.embeds.length > 0 && msg.embeds[0].image && msg.embeds[0].image.url) {
+                    return msg.embeds[0].image.url;
+                }
+                // Wait and try to fetch the message again
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+                try {
+                    if (isInteraction) {
+                        msg = await context.fetchReply();
+                    } else {
+                        msg = await context.channel.messages.fetch(msg.id);
+                    }
+                } catch (fetchError) {
+                    console.warn(`Attachment fetch attempt ${attempt} failed:`, fetchError.message);
+                }
+            }
+            throw new Error('Failed to retrieve attachment URL after multiple attempts');
+        };
+
+        const attachmentUrl = await getAttachmentUrlWithRetry(sentMessage);
+        // --- END OF RETRY LOGIC ---
+
+        const userId = isInteraction ? context.user.id : context.author.id;
+        const userTag = isInteraction ? context.user.tag : context.author.tag;
+
+        // Create button row
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder()
+                    .setLabel('Download')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(attachmentUrl),
+                new ButtonBuilder()
+                    .setCustomId(`song_quote_dm_${userId}`)
+                    .setLabel('Send in DM')
+                    .setStyle(ButtonStyle.Secondary)
+            );
+
+        // Add buttons to the message
+        if (isInteraction) {
+            await context.editReply({ components: [row] });
+        } else {
+            await sentMessage.edit({ components: [row] });
+        }
+
+        // Collector for the DM button
+        const filter = i => i.customId === `song_quote_dm_${userId}` && i.user.id === userId;
+        const collector = sentMessage.createMessageComponentCollector({ filter, time: 60000 });
+
+        collector.on('collect', async i => {
+            try {
+                const dmEmbed = new EmbedBuilder()
+                    .setColor(config.embedColor)
+                    .setTitle(`${emojis.blackbutterfly} Song Quote Generated`)
+                    .setDescription(`**${track.info.title}** - ${track.info.author || 'Unknown Artist'}`)
+                    .setImage(attachmentUrl)
+                    .setFooter({ text: `Requested by ${userTag}` })
+                    .setTimestamp();
+
+                await i.user.send({ embeds: [dmEmbed] });
+                await i.reply({ content: `${emojis.success} Image sent to your DMs!`, ephemeral: true });
+            } catch (error) {
+                await i.reply({
+                    content: `${emojis.error} Could not send you a DM. Please make sure your DMs are open.`,
+                    ephemeral: true
+                });
+            }
+        });
+
+        collector.on('end', async () => {
+            // Disable only the DM button
+            const disabledRow = new ActionRowBuilder().addComponents(
+                ButtonBuilder.from(row.components[0]),
+                ButtonBuilder.from(row.components[1]).setDisabled(true)
+            );
+            if (isInteraction) {
+                await context.editReply({ components: [disabledRow] }).catch(() => {});
+            } else {
+                await sentMessage.edit({ components: [disabledRow] }).catch(() => {});
+            }
+        });
+
     } catch (error) {
         console.error('Song quote error:', error);
         if (!isInteraction && loadingMessage) {
@@ -2741,7 +2894,6 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
                 loadingMessage.delete().catch(() => {});
             }, 2000);
         }
-        
         await sendResponse(context, `${emojis.error} | Failed to generate song quote: ${error.message}`, isInteraction);
     }
 }
