@@ -63,16 +63,25 @@ MONGO_URI=				// MongoDB
 BOT_IDENTIFIER=			// For MongoDB Collection
 ```
 
-## Screenshots
+## Screenshots of a user using the Bot
 
 ### Now Playing
-![Now Playing](https://i.imgur.com/PMmebc2.png)
+![Now Playing](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/now_playing.png?raw=true)
+
+### Help
+![Help](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/help.png?raw=true)
 
 ### Queue List
-![Queue List](https://i.imgur.com/n7uBEvU.png)
+![Queue List](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/queue.png?raw=true)
 
 ### Player Status
-![Player Status](https://i.imgur.com/0JhhPo3.png)
+![Player Status](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/status.png?raw=true)
+
+### Song Quote
+![Song Quote](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/song-quote1.png?raw=true)
+![Generated Song Quote Image](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/song-quote2.png?raw=true)
+
+###### Thanks to anvesha.67 for using the commands of the bot and providing these beautiful screenshots!
 
 ## Support
 
