@@ -214,7 +214,7 @@ module.exports = {
 	},
 
     queueEnded: (channel) => {
-        return channel.send(`${emojis.info} | Queue has ended. Leaving voice channel.`);
+        return channel.send(`${emojis.info} | Queue has ended.`);
     },
 
     queueList: async (channel, queue, currentTrack, authorId) => {

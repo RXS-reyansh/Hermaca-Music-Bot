@@ -265,6 +265,8 @@ client.prefix = config.prefix || "~";
 const serversFile = path.join(__dirname, 'servers.json'); */
 client.original24SevenChannels = new Map();
 
+client.inactivityTimers = new Map();
+
 client.emojis = emojis;
 client.stickers = stickers;
 client.config = config;
@@ -556,6 +558,23 @@ const slashCommands = [
 	new SlashCommandBuilder()
 		.setName('debug')
 		.setDescription('Debug bot status'),
+		
+	new SlashCommandBuilder()
+		.setName('join')
+		.setDescription('Make the bot join a voice channel')
+		.addChannelOption(option =>
+			option.setName('channel')
+				.setDescription('The voice channel to join (optional)')
+				.setRequired(false)
+				.addChannelTypes(2)),
+				
+	new SlashCommandBuilder()
+		.setName('leave')
+		.setDescription('Make the bot leave the voice channel'),
+
+	new SlashCommandBuilder()
+		.setName('rejoin')
+		.setDescription('Make the bot leave and rejoin the current voice channel'),
 		
 	new SlashCommandBuilder()
         .setName('help')
@@ -966,13 +985,7 @@ client.on(Events.InteractionCreate, async interaction => {
                 break;
             }
             case 'stop': {
-				const player = client.riffy.players.get(guild.id);
-				if (!player) return await interaction.editReply(`${emojis.error} | Nothing is playing!`);
-
-				await clearVoiceChannelStatus(player.voiceChannel);
-				
-				player.destroy();
-				await interaction.editReply(`${emojis.success} | Stopped the music and cleared the queue!`);
+				await handleStop(interaction, true);
 				break;
 			}
             case 'lyrics': {
@@ -1298,6 +1311,9 @@ client.on(Events.InteractionCreate, async interaction => {
                     { name: 'resume', description: 'Resume the current track' },
                     { name: 'skip', description: 'Skip the current track' },
                     { name: 'stop', description: 'Stop playback and clear queue' },
+					{ name: 'joins', description: 'Make the bot join any voice channel' },
+					{ name: 'leave', description: 'Make the bot leave the voice channel' },
+					{ name: 'rejoin', description: 'Make the bot leave and rejoin the current voice channel' },
                     { name: 'lyrics', description: 'Show the lyrics of the current track' },
                     { name: 'queue', description: 'Show the current queue' },
                     { name: 'nowplaying', description: 'Show current track info' },
@@ -1545,26 +1561,23 @@ client.on(Events.InteractionCreate, async interaction => {
                 }
                 break;
             }
-            case 'debug': {
-                const wsLatency = Math.round(client.actualWsPing || client.ws.ping || 0);
-                const dbStatus = await db.testConnection();
-                const nodes = client.riffy.nodes.size;
-                const players = client.riffy.players.size;
-                
-                const embed = new EmbedBuilder()
-                    .setColor(config.embedColor)
-                    .setTitle('🔧 Debug Information')
-                    .addFields(
-                        { name: 'WebSocket Ping', value: `${wsLatency}ms`, inline: true },
-                        { name: 'Database', value: dbStatus ? '✅ Connected' : '❌ Disconnected', inline: true },
-                        { name: 'Lavalink Nodes', value: `${nodes} connected`, inline: true },
-                        { name: 'Active Players', value: `${players} active`, inline: true },
-                        { name: 'Memory Usage', value: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`, inline: true }
-                    );
-                
-                await interaction.editReply({ embeds: [embed] });
-                break;
-            }
+			
+			case 'join': {
+				const channel = options.getChannel('channel');
+				await handleJoin(interaction, channel, true);
+				break;
+			}
+			
+			case 'leave': {
+				await handleLeave(interaction, true);
+				break;
+			}
+
+			case 'rejoin': {
+				await handleRejoin(interaction, true);
+				break;
+			}
+
             default: {
                 await interaction.editReply({ content: `${emojis.error} | Unknown command!` });
                 break;
@@ -1605,7 +1618,10 @@ async function handlePlay(context, query, isInteraction = false) {
 				deaf: true,
 			});
 		} else {
-
+			if (player.voiceChannel !== member.voice.channel.id) {
+				console.log(`Moving player from ${player.voiceChannel} to ${member.voice.channel.id}`);
+				player.setVoiceChannel(member.voice.channel.id);
+			}
 			if (player.textChannel !== channel.id) {
 				player.setTextChannel(channel.id);
 			}
@@ -1791,6 +1807,7 @@ async function handlePlay(context, query, isInteraction = false) {
 
             if (!player.playing && !player.paused) {
                 console.log('Starting playback...');
+				cancelInactivityTimer(guild.id);
                 player.play();
             }
         } else if (loadType === "search" || loadType === "track") {
@@ -1819,6 +1836,7 @@ async function handlePlay(context, query, isInteraction = false) {
             
             if (!player.playing && !player.paused) {
                 console.log('Starting playback...');
+				cancelInactivityTimer(guild.id);
                 player.play();
             }
         } else {
@@ -1879,10 +1897,58 @@ async function handleStop(context, isInteraction = false) {
     if (!player) {
         return await sendResponse(context, `${emojis.error} | Nothing is playing!`, isInteraction);
     }
-    await clearVoiceChannelStatus(player.voiceChannel);
-    
-    player.destroy();
+
+    player._manualStop = true;
+
+    player.queue.clear();
+    player.stop();
+
     await sendResponse(context, `${emojis.success} | Stopped the music and cleared the queue!`, isInteraction);
+
+    await rejoinAndIdle(guild.id, player.textChannel);
+}
+async function rejoinAndIdle(guildId, textChannelId) {
+    const player = client.riffy.players.get(guildId);
+    if (!player) return null;
+    
+    const voiceChannelId = player.voiceChannel;
+    const guild = client.guilds.cache.get(guildId);
+    
+    if (!guild) return null;
+    if (!guild) return null;
+    
+    const voiceChannel = guild.channels.cache.get(voiceChannelId);
+    if (!voiceChannel || voiceChannel.type !== 2) return null;
+    const textChannel = textChannelId || player.textChannel;
+    
+    console.log(`🔄 Rejoining voice channel in guild ${guildId}`);
+    await clearVoiceChannelStatus(voiceChannelId);
+    cancelInactivityTimer(guildId);
+    player.destroy();
+    await new Promise(resolve => setTimeout(resolve, 800));
+    const newPlayer = client.riffy.createConnection({
+        guildId: guildId,
+        voiceChannel: voiceChannel.id,
+        textChannel: textChannel,
+        deaf: true,
+    });
+    const savedVolume = client.guildVolumes.get(guildId);
+    if (savedVolume !== undefined) {
+        newPlayer.setVolume(savedVolume);
+    }
+    const twentyFourSevenData = await load24SevenData();
+    const guild24Seven = twentyFourSevenData[guildId]?.enabled === true;
+
+    if (guild24Seven) {
+        await setVoiceChannelStatus(voiceChannel.id, `${emojis.blade} | 24/7 enabled!`);
+        console.log(`✅ 24/7 mode active in guild ${guildId} - staying in channel`);
+    } else {
+        await setVoiceChannelStatus(voiceChannel.id, `${emojis.greensparkles || '✨'} | Idle.`);
+        startInactivityTimer(guildId, textChannel);
+        console.log(`⏰ Inactivity timer started for guild ${guildId}`);
+    }
+
+    return newPlayer;
 }
 async function handleLyrics(context, isInteraction = false) {
     const guild = isInteraction ? context.guild : context.guild;
@@ -2215,8 +2281,18 @@ async function handleClear(context, isInteraction = false) {
     if (!player.queue.length) {
         return await sendResponse(context, `${emojis.error} | Queue is already empty!`, isInteraction);
     }
+
+    if (player.playing || player.paused) {
+        player._manualStop = true;
+    }
+    
     player.queue.clear();
     await sendResponse(context, `${emojis.success} | Cleared the queue!`, isInteraction);
+
+    if (!player.playing && !player.paused) {
+        delete player._manualStop;
+        await rejoinAndIdle(guild.id, player.textChannel);
+    }
 }
 async function handleStatus(context, isInteraction = false) {
     const guild = isInteraction ? context.guild : context.guild;
@@ -2820,6 +2896,180 @@ async function handlePlaySpotify(context, isInteraction = false) {
         );
     }
 }
+
+async function handleJoin(context, channelArg, isInteraction = false) {
+    let guild, member, channel, user;
+    if (isInteraction) {
+        guild = context.guild;
+        member = context.member;
+        channel = context.channel;
+        user = context.user;
+    } else {
+        guild = context.guild;
+        member = context.member;
+        channel = context.channel;
+        user = context.author;
+    }
+    let targetChannel = null;
+
+    if (channelArg) {
+        if (typeof channelArg === 'object' && channelArg.id) {
+            targetChannel = channelArg;
+        } else {
+            const channelId = channelArg.replace(/[<#>]/g, '');
+            targetChannel = guild.channels.cache.get(channelId);
+            if (!targetChannel) {
+                targetChannel = guild.channels.cache.find(c => 
+                    c.type === 2 && c.name.toLowerCase() === channelArg.toLowerCase()
+                );
+            }
+        }
+    } else {
+        if (member.voice.channel) {
+            targetChannel = member.voice.channel;
+        } else {
+            targetChannel = guild.channels.cache.find(c => 
+                c.type === 2 && c.name.toLowerCase() === 'music'
+            );
+            if (!targetChannel) {
+                targetChannel = guild.channels.cache.find(c => c.type === 2);
+            }
+        }
+    }
+
+    if (!targetChannel) {
+        return await sendResponse(context, `${emojis.error} | No voice channel found to join.`, isInteraction);
+    }
+    const permissions = targetChannel.permissionsFor(guild.members.me);
+    if (!permissions.has('Connect') || !permissions.has('Speak')) {
+        return await sendResponse(context, `${emojis.error} | I don't have permission to join/speak in ${targetChannel.toString()}.`, isInteraction);
+    }
+    let player = client.riffy.players.get(guild.id);
+    if (player) {
+        if (player.voiceChannel !== targetChannel.id) {
+            player.setVoiceChannel(targetChannel.id);
+        }
+        player.setTextChannel(channel.id);
+    } else {
+        player = client.riffy.createConnection({
+            guildId: guild.id,
+            voiceChannel: targetChannel.id,
+            textChannel: channel.id,
+            deaf: true,
+        });
+    }
+    const savedVolume = client.guildVolumes.get(guild.id);
+    if (savedVolume !== undefined) {
+        player.setVolume(savedVolume);
+    }
+    await setVoiceChannelStatus(targetChannel.id, `${emojis.greensparkles || '✨'} | Idle.`);
+    cancelInactivityTimer(guild.id);
+    const twentyFourSevenData = await load24SevenData();
+    if (!twentyFourSevenData[guild.id]?.enabled) {
+        startInactivityTimer(guild.id, channel.id);
+    }
+
+    await sendResponse(context, `${emojis.success} | Joined ${targetChannel.toString()}!`, isInteraction);
+}
+
+async function handleLeave(context, isInteraction = false) {
+    let guild, channel, user;
+    if (isInteraction) {
+        guild = context.guild;
+        channel = context.channel;
+        user = context.user;
+    } else {
+        guild = context.guild;
+        channel = context.channel;
+        user = context.author;
+    }
+
+    const player = client.riffy.players.get(guild.id);
+    
+    if (!player) {
+        return await sendResponse(context, 
+            `${emojis.error} | I'm not in a voice channel!`, 
+            isInteraction
+        );
+    }
+
+    const voiceChannelId = player.voiceChannel;
+    await clearVoiceChannelStatus(voiceChannelId);
+    cancelInactivityTimer(guild.id);
+    player.destroy();
+    
+    await sendResponse(context, 
+        `${emojis.success} | Left the voice channel!`, 
+        isInteraction
+    );
+}
+
+async function handleRejoin(context, isInteraction = false) {
+    let guild, member, channel, user;
+    if (isInteraction) {
+        guild = context.guild;
+        member = context.member;
+        channel = context.channel;
+        user = context.user;
+    } else {
+        guild = context.guild;
+        member = context.member;
+        channel = context.channel;
+        user = context.author;
+    }
+
+    const player = client.riffy.players.get(guild.id);
+    
+    if (!player) {
+        const prefix = client.prefix || "~";
+        return await sendResponse(context, 
+            `${emojis.error} | The bot is in no voice channel from before. Use \`${prefix}join\` command instead!`, 
+            isInteraction
+        );
+    }
+
+    const oldVoiceChannelId = player.voiceChannel;
+    const oldTextChannelId = player.textChannel;
+    const voiceChannel = guild.channels.cache.get(oldVoiceChannelId);
+    
+    if (!voiceChannel || voiceChannel.type !== 2) {
+        return await sendResponse(context, 
+            `${emojis.error} | The previous voice channel no longer exists or is invalid!`, 
+            isInteraction
+        );
+    }
+    const permissions = voiceChannel.permissionsFor(guild.members.me);
+    if (!permissions.has('Connect') || !permissions.has('Speak')) {
+        return await sendResponse(context, 
+            `${emojis.error} | I don't have permission to join/speak in ${voiceChannel.toString()}.`, 
+            isInteraction
+        );
+    }
+    await clearVoiceChannelStatus(oldVoiceChannelId);
+    player.destroy();
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const newPlayer = client.riffy.createConnection({
+        guildId: guild.id,
+        voiceChannel: voiceChannel.id,
+        textChannel: channel.id,
+        deaf: true,
+    });
+    const savedVolume = client.guildVolumes.get(guild.id);
+    if (savedVolume !== undefined) {
+        newPlayer.setVolume(savedVolume);
+    }
+    await setVoiceChannelStatus(voiceChannel.id, `${emojis.greensparkles || '✨'} | Idle.`);
+    const twentyFourSevenData = await load24SevenData();
+    if (!twentyFourSevenData[guild.id]?.enabled) {
+        startInactivityTimer(guild.id, channel.id);
+    }
+
+    await sendResponse(context, 
+        `${emojis.success} | Rejoined ${voiceChannel.toString()}!`, 
+        isInteraction
+    );
+}
+
 async function sendResponse(context, content, isInteraction = false) {
     try {
         if (isInteraction) {
@@ -2876,18 +3126,14 @@ async function updatePlayerVoiceStatus(player) {
 
     const track = player.current || player.queue.current;
     if (track) {
-        const status = `${emojis.cutemusic} • ${track.info.title} - ${track.info.author}`;
-
+        const status = `${emojis.cutemusic} | ${track.info.title} - ${track.info.author}`;
         const truncated = status.length > 500 ? status.slice(0, 497) + '...' : status;
         await setVoiceChannelStatus(channelId, truncated);
-    }
-
-    else {
+    } else {
         if (guild24Seven) {
-            await setVoiceChannelStatus(channelId, `${emojis.blade} • 24/7 enabled!`);
+            await setVoiceChannelStatus(channelId, `${emojis.blade} | 24/7 enabled!`);
         } else {
-
-            await clearVoiceChannelStatus(channelId);
+            await setVoiceChannelStatus(channelId, `${emojis.greensparkles || '✨'} | Idle.`);
         }
     }
 }
@@ -2902,6 +3148,48 @@ function formatDuration(ms) {
     }
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
+
+/**
+ * Starts an inactivity timer for a guild. Cancels any existing timer.
+ * @param {string} guildId 
+ * @param {string} textChannelId - Channel to send leave message
+ */
+function startInactivityTimer(guildId, textChannelId) {
+    if (client.inactivityTimers.has(guildId)) {
+        clearTimeout(client.inactivityTimers.get(guildId));
+    }
+
+    const timer = setTimeout(async () => {
+        const player = client.riffy.players.get(guildId);
+        if (!player) {
+            client.inactivityTimers.delete(guildId);
+            return;
+        }
+        if (!player.current && player.queue.length === 0) {
+            const channel = client.channels.cache.get(textChannelId || player.textChannel);
+            if (channel) {
+                await channel.send(`${emojis.info} Left the voice channel due to inactivity. Enable 24/7 mode if you don't want this.`);
+            }
+            await clearVoiceChannelStatus(player.voiceChannel);
+            player.destroy();
+        }
+        client.inactivityTimers.delete(guildId);
+    }, 5 * 60 * 1000);
+
+    client.inactivityTimers.set(guildId, timer);
+}
+
+/**
+ * Cancels the inactivity timer for a guild.
+ * @param {string} guildId 
+ */
+function cancelInactivityTimer(guildId) {
+    if (client.inactivityTimers.has(guildId)) {
+        clearTimeout(client.inactivityTimers.get(guildId));
+        client.inactivityTimers.delete(guildId);
+    }
+}
+
 async function sendAfkEmbed(message, afkUser, afkData) {
     const member = message.guild?.members.cache.get(afkUser.id);
     const displayName = member?.displayName || afkUser.globalName || afkUser.username;
@@ -3083,6 +3371,22 @@ client.on("messageCreate", async (message) => {
                 break;
             }
             
+			case 'join': {
+				const channelArg = args.join(' ');
+				await handleJoin(message, channelArg, false);
+				break;
+			}
+			
+			case 'leave': {
+				await handleLeave(message, false);
+				break;
+			}
+
+			case 'rejoin': {
+				await handleRejoin(message, false);
+				break;
+			}
+			
             case 'lyrics': {
                 await handleLyrics(message, false);
                 break;
@@ -3474,9 +3778,8 @@ client.on("messageCreate", async (message) => {
 					const firstArg = args[0].toLowerCase();
 
 					if (firstArg === 'bot') {
-						await client.user.fetch(); // refresh global banner info
+						await client.user.fetch();
 						targetUser = client.user;
-						// fetch the bot's member in this guild to check for server banner
 						member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
 						hasServerBanner = member && member.banner ? true : false;
 					} else if (firstArg === 'server') {
@@ -3527,7 +3830,6 @@ client.on("messageCreate", async (message) => {
 				};
 
 				if (hasServerBanner && hasGlobalBanner) {
-					// prompt user to choose which banner to show
 					const promptEmbed = new EmbedBuilder()
 						.setColor(config.embedColor)
 						.setTitle(`${emojis.info} Choose Banner`)
@@ -4208,15 +4510,11 @@ client.on("messageCreate", async (message) => {
 				try {
 					const base64 = await imageUrlToBase64(imageUrl);
 					const rest = new REST({ version: '10' }).setToken(config.botToken);
-
-					// Use the @me endpoint for the bot's own member
 					await rest.patch(Routes.guildMember(message.guild.id, '@me'), {
 						body: { avatar: base64 }
 					});
 
 					await message.channel.send(`${emojis.success} | Server avatar updated successfully!`);
-
-					// Delete only the loading message after 3 seconds
 					setTimeout(() => {
 						loadingMsg.delete().catch(() => {});
 					}, 3000);
@@ -4302,8 +4600,6 @@ client.on("messageCreate", async (message) => {
 				} catch (error) {
 					console.error('Setname error:', error);
 					await loadingMsg.delete().catch(() => {});
-
-					// More specific error messages
 					if (error.status === 403) {
 						await message.channel.send(`${emojis.error} | Missing permissions! I need the \`Change Nickname\` permission.`);
 					} else {
@@ -4433,6 +4729,7 @@ client.riffy.on("nodeError", (node, error) => {
     console.log(`${emojis.error} Node "${node.name}" encountered an error: ${error.message}.`);
 });
 client.riffy.on("trackStart", async (player, track) => {
+	cancelInactivityTimer(player.guildId);
     const channel = client.channels.cache.get(player.textChannel);
     if (!channel) return;
 
@@ -4466,29 +4763,18 @@ client.riffy.on("trackStart", async (player, track) => {
 
 client.riffy.on("queueEnd", async (player) => {
     const channel = client.channels.cache.get(player.textChannel);
-    const data = await load24SevenData();
-    const guildData = data[player.guildId];
-    
-    if (guildData && guildData.enabled) {
-        const originalChannel = client.original24SevenChannels.get(player.guildId);
-        
-        if (originalChannel) {
-            try {
-                player.setVoiceChannel(originalChannel.voiceChannel);
-                player.setTextChannel(originalChannel.textChannel || originalChannel.voiceChannel);
-                client.original24SevenChannels.delete(player.guildId);
-            } catch (error) {
-                console.error(`${emojis.error} Failed to return to 24/7 channel:`, error.message);
-            }
-        }
-        
-        player.queue.clear();
-        await updatePlayerVoiceStatus(player);
-    } else {
-        await clearVoiceChannelStatus(player.voiceChannel);
-        player.destroy();
-        if (channel) messages.queueEnded(channel);
+
+    if (player._manualStop) {
+
+        delete player._manualStop;
+        return;
     }
+
+    if (channel) {
+        await messages.queueEnded(channel);
+    }
+
+    await rejoinAndIdle(player.guildId, player.textChannel);
 });
 client.on("raw", (d) => {
     if (![GatewayDispatchEvents.VoiceStateUpdate, GatewayDispatchEvents.VoiceServerUpdate].includes(d.t)) return;
@@ -4501,6 +4787,7 @@ client.on("error", (error) => {
 client.on("voiceStateUpdate", async (oldState, newState) => {
     if (oldState.id !== client.user.id && newState.id !== client.user.id) return;
     if (oldState.channelId && !newState.channelId) {
+		cancelInactivityTimer(oldState.guild.id);
         console.log(`🔌 Bot disconnected from ${oldState.channelId} in guild ${oldState.guild.id}`);
         await clearVoiceChannelStatus(oldState.channelId);
         const data = await load24SevenData();

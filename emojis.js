@@ -11,6 +11,7 @@ module.exports = {
 	star: "<a:satan:1471741397810942040>",
 	blackheart1: "<a:black_big_heart:1471742558978707586>",
 	blacksparkles: "<a:black_sparkles:1471741592036446239>",
+	greensparkles: "<a:green_sparkles:1472173690274971740>",
 	doakesknows: "<:doakesknows:1471740329869836431>",
 	redblackcross: "<a:redblack_cross:1471741429104640021>",
 	emmaheart1: "<:emma_myers_heart1:1471740496815587410>",
