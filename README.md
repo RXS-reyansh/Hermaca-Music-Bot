@@ -9,7 +9,7 @@ A feature-rich Discord music bot built with Discord.js, Riffy, and Lavalink. Thi
 - 📋 **Queue management** – Move, insert, remove, and reorder tracks
 - 🔁 **Loop & shuffle** – Toggle queue looping and shuffle your playlist
 - 🔊 **Volume control** – Per-player volume and server-wide persistent volume
-- 🎛️ **Audio filters** – Add effects like bassboost, slow, etc.
+- 🎛️ **Audio filters** – Add effects like nightcore, vaporwave, deepbass, etc.
 - 📜 **Lyrics display** – Fetch and show lyrics for current track
 - 📊 **Statistics** – Personal listening stats and global leaderboard
 - 🎨 **Song quotes** – Create aesthetic quote images with current track
