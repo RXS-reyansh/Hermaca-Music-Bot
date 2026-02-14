@@ -21,7 +21,8 @@ const {
     MessageFlags,
     ActionRowBuilder,
     ButtonBuilder,
-    ButtonStyle
+    ButtonStyle,
+    PermissionsBitField
 } = require("discord.js");
 const { Riffy } = require("riffy");
 const { Spotify } = require("riffy-spotify");
@@ -141,6 +142,17 @@ async function handleInteractionTimeout(interaction, timeout = 15000) {
             commandTimeouts.set(interaction.id, timeoutId);
         }
     });
+}
+
+async function imageUrlToBase64(url) {
+    const response = await fetch(url, {
+        timeout: 10000,
+        size: 5 * 1024 * 1024
+    });
+    if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const mime = response.headers.get('content-type') || 'image/png';
+    return `data:${mime};base64,${buffer.toString('base64')}`;
 }
 
 /* async function safeInteractionEdit(interaction, options, timeout = 10000) {
@@ -3462,8 +3474,11 @@ client.on("messageCreate", async (message) => {
 					const firstArg = args[0].toLowerCase();
 
 					if (firstArg === 'bot') {
-						await client.user.fetch();
+						await client.user.fetch(); // refresh global banner info
 						targetUser = client.user;
+						// fetch the bot's member in this guild to check for server banner
+						member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
+						hasServerBanner = member && member.banner ? true : false;
 					} else if (firstArg === 'server') {
 						targetGuild = message.guild;
 						if (!targetGuild.banner) {
@@ -3492,7 +3507,9 @@ client.on("messageCreate", async (message) => {
 					member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
 					hasServerBanner = member && member.banner ? true : false;
 				}
+
 				const hasGlobalBanner = targetUser.banner ? true : false;
+
 				const showBanner = async (type) => {
 					let bannerURL, title;
 					if (type === 'server' && member && member.banner) {
@@ -3508,7 +3525,9 @@ client.on("messageCreate", async (message) => {
 					const embed = buildImageEmbed(title, bannerURL, message.author);
 					await sendImageWithDMButton(message.channel, embed, message.author);
 				};
+
 				if (hasServerBanner && hasGlobalBanner) {
+					// prompt user to choose which banner to show
 					const promptEmbed = new EmbedBuilder()
 						.setColor(config.embedColor)
 						.setTitle(`${emojis.info} Choose Banner`)
@@ -4161,6 +4180,136 @@ client.on("messageCreate", async (message) => {
 						});
 					}
 				});
+				break;
+			}
+			
+			case 'setavatar':
+			case 'setav': {
+				if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
+				}
+
+				let imageUrl = null;
+				if (message.attachments.size > 0) {
+					imageUrl = message.attachments.first().url;
+				} else if (args.length > 0) {
+					const url = args[0];
+					if (url.match(/^https?:\/\/.+\/.*\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)) {
+						imageUrl = url;
+					}
+				}
+
+				if (!imageUrl) {
+					return message.reply(`${emojis.error} | Please attach an image or provide a direct image URL.`);
+				}
+
+				const loadingMsg = await message.channel.send(`${emojis.loading} | Setting new server avatar...`);
+
+				try {
+					const base64 = await imageUrlToBase64(imageUrl);
+					const rest = new REST({ version: '10' }).setToken(config.botToken);
+
+					// Use the @me endpoint for the bot's own member
+					await rest.patch(Routes.guildMember(message.guild.id, '@me'), {
+						body: { avatar: base64 }
+					});
+
+					await message.channel.send(`${emojis.success} | Server avatar updated successfully!`);
+
+					// Delete only the loading message after 3 seconds
+					setTimeout(() => {
+						loadingMsg.delete().catch(() => {});
+					}, 3000);
+				} catch (error) {
+					console.error('Setavatar error:', error);
+					await loadingMsg.delete().catch(() => {});
+					await message.channel.send(`${emojis.error} | Failed to update avatar: ${error.message}`);
+				}
+				break;
+			}
+
+			case 'setbanner':
+			case 'setbn': {
+				if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
+				}
+
+				let imageUrl = null;
+				if (message.attachments.size > 0) {
+					imageUrl = message.attachments.first().url;
+				} else if (args.length > 0) {
+					const url = args[0];
+					if (url.match(/^https?:\/\/.+\/.*\.(png|jpg|jpeg|gif|webp)(\?.*)?$/i)) {
+						imageUrl = url;
+					}
+				}
+
+				if (!imageUrl) {
+					return message.reply(`${emojis.error} | Please attach an image or provide a direct image URL.`);
+				}
+
+				const loadingMsg = await message.channel.send(`${emojis.loading} | Setting new server banner...`);
+
+				try {
+					const base64 = await imageUrlToBase64(imageUrl);
+					const rest = new REST({ version: '10' }).setToken(config.botToken);
+
+					await rest.patch(Routes.guildMember(message.guild.id, '@me'), {
+						body: { banner: base64 }
+					});
+
+					await message.channel.send(`${emojis.success} | Server banner updated successfully!`);
+
+					setTimeout(() => {
+						loadingMsg.delete().catch(() => {});
+					}, 3000);
+				} catch (error) {
+					console.error('Setbanner error:', error);
+					await loadingMsg.delete().catch(() => {});
+					await message.channel.send(`${emojis.error} | Failed to update banner: ${error.message}`);
+				}
+				break;
+			}
+
+			case 'setname': {
+				if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
+				}
+
+				const newNick = args.join(' ').trim();
+				if (!newNick) {
+					return message.reply(`${emojis.error} | Please provide a new nickname for the bot.`);
+				}
+
+				if (newNick.length > 32) {
+					return message.reply(`${emojis.error} | Nickname must be 32 characters or less.`);
+				}
+
+				const loadingMsg = await message.channel.send(`${emojis.loading} | Changing nickname...`);
+
+				try {
+					const rest = new REST({ version: '10' }).setToken(config.botToken);
+
+					await rest.patch(Routes.guildMember(message.guild.id, '@me'), {
+						body: { nick: newNick }
+					});
+
+					await message.channel.send(`${emojis.success} | Nickname changed to **${newNick}**!`);
+
+					setTimeout(() => {
+						loadingMsg.delete().catch(() => {});
+					}, 3000);
+				} catch (error) {
+					console.error('Setname error:', error);
+					await loadingMsg.delete().catch(() => {});
+
+					// More specific error messages
+					if (error.status === 403) {
+						await message.channel.send(`${emojis.error} | Missing permissions! I need the \`Change Nickname\` permission.`);
+					} else {
+						await message.channel.send(`${emojis.error} | Failed to change nickname: ${error.message}`);
+					}
+				}
 				break;
 			}
 			
