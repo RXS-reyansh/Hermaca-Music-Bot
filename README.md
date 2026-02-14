@@ -112,11 +112,14 @@ MIT License - see the [LICENSE](LICENSE) file for details.
 ---
 
 ⭐ Star this repository if you find it useful!
-<p align="center">
+<p align="center" style="margin: 0; padding: 0; line-height: 0;">
   <img src="https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/cover.gif?raw=true" 
        alt="Bot Demo GIF" 
        width="400"
        style="display: block; 
+              margin: 0; 
+              padding: 0; 
               border: 3px solid #5865F2; 
-              box-shadow: 0 8px 16px rgba(88, 101, 242, 0.3);" />
+              box-shadow: 0 8px 16px rgba(88, 101, 242, 0.3);
+              vertical-align: bottom;" />
 </p>
