@@ -112,18 +112,10 @@ MIT License - see the [LICENSE](LICENSE) file for details.
 ---
 
 ⭐ Star this repository if you find it useful!
-<div style="margin: 0; padding: 0; line-height: 0; font-size: 0;">
-  <img src="https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/cover.gif?raw=true" 
-       alt="Bot Demo GIF" 
-       width="400"
-       style="display: block; 
-              margin: 0; 
-              padding: 0; 
-              border: 3px solid #5865F2; 
-              box-shadow: 0 8px 16px rgba(88, 101, 242, 0.3);" />
-</div>
-              padding: 0; 
-              border: 3px solid #5865F2; 
-              box-shadow: 0 8px 16px rgba(88, 101, 242, 0.3);
-              vertical-align: bottom;" />
+<p align="center">
+  <div style="display: inline-block; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 16px rgba(88, 101, 242, 0.3); border: 3px solid #5865F2;">
+    <img src="https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/cover.gif?raw=true" 
+         alt="Bot Demo GIF" 
+         width="400" />
+  </div>
 </p>
