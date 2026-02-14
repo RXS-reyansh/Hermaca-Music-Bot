@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Discord Music Bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 0 20px;
+            color: #333;
+        }
+        h1, h2 {
+            color: #2c3e50;
+        }
+        h1 {
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        hr {
+            border: 1px solid #eee;
+        }
+        .last-updated {
+            color: #7f8c8d;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <h1>Privacy Policy</h1>
+    <p class="last-updated">Last Updated: February 14, 2026</p>
+
+    <p>This Privacy Policy explains how our Discord music bot ("the Bot") collects, uses, and protects your information when you use the Bot on Discord. By inviting or using the Bot, you agree to the practices described in this policy.</p>
+
+    <h2>1. Data We Collect</h2>
+    <p>The Bot collects and stores the following data:</p>
+    <ul>
+        <li><strong>User IDs:</strong> To associate music preferences, statistics, Spotify username, AFK status, and command usage with a specific Discord user.</li>
+        <li><strong>Server/Guild IDs:</strong> To store server-specific settings such as default volume, 24/7 mode configuration, and saved playlists.</li>
+        <li><strong>Song Play History:</strong> When you play a track, we may record the song title, artist, and timestamp to generate personal statistics (e.g., <code>/mystats</code>, <code>/leaderboard</code>).</li>
+        <li><strong>Spotify Username:</strong> If you use the <code>/setspotify</code> command, we store your Spotify username to fetch your playlists via the Spotify API.</li>
+        <li><strong>AFK Status and Reason:</strong> If you use the AFK command, we store your AFK status, reason, and optional image URL across all servers.</li>
+        <li><strong>Voice Channel Status:</strong> The Bot may set a custom status in voice channels to display the currently playing track (visible to all channel members).</li>
+        <li><strong>Guild Volume Settings:</strong> Permanent volume levels set per server via <code>/servervolume</code> are saved.</li>
+        <li><strong>24/7 Mode Configuration:</strong> If enabled, we store the voice channel and text channel where the Bot should remain active.</li>
+        <li><strong>Server Invites:</strong> The Bot may generate and store invite links for server listing purposes.</li>
+        <li><strong>Command Usage Data:</strong> For debugging and improving the Bot, we may temporarily log command names and execution timestamps.</li>
+    </ul>
+
+    <h2>2. How We Use Your Data</h2>
+    <p>Your data is used exclusively to provide and improve the Bot's functionality:</p>
+    <ul>
+        <li>User IDs are used to personalize features like statistics, Spotify integration, and AFK status.</li>
+        <li>Server IDs enable server-specific settings (volume, 24/7 mode).</li>
+        <li>Song play history powers personal statistics and leaderboards.</li>
+        <li>Spotify usernames allow fetching your playlists when you use <code>/playspotify</code>.</li>
+        <li>AFK data is used to notify others when you are away.</li>
+        <li>Voice channel status is set to display the current track (optional and visible to all).</li>
+    </ul>
+    <p>We do <strong>not</strong> sell, rent, or share your personal data with third parties for marketing purposes. Data may be shared with third-party services only as necessary to deliver core features (e.g., Spotify API, YouTube, Lavalink nodes). Those services have their own privacy policies.</p>
+
+    <h2>3. Data Storage and Security</h2>
+    <p>All data is stored securely in a MongoDB database. We implement reasonable security measures to protect against unauthorized access, alteration, or destruction. However, no method of transmission over the internet or electronic storage is 100% secure.</p>
+
+    <h2>4. Data Retention</h2>
+    <p>We retain your data for as long as your interaction with the Bot continues. You may request deletion of your personal data by contacting us (see section 8). Some data may be retained for a reasonable period to comply with legal obligations or resolve disputes.</p>
+
+    <h2>5. Third-Party Services</h2>
+    <p>The Bot integrates with the following third-party services:</p>
+    <ul>
+        <li><strong>Spotify API:</strong> To fetch your playlists when you use <code>/playspotify</code>. Your Spotify username is sent to Spotify; their privacy policy applies.</li>
+        <li><strong>YouTube (via Lavalink/Riffy):</strong> To search for and play music. Queries you make are sent to YouTube.</li>
+        <li><strong>Genius API:</strong> For lyrics functionality.</li>
+        <li><strong>MongoDB:</strong> For database hosting.</li>
+        <li><strong>Asterix Hosting:</strong> The Bot is hosted on Asterix servers.</li>
+    </ul>
+    <p>Please review the privacy policies of these services for more information.</p>
+
+    <h2>6. Children's Privacy</h2>
+    <p>The Bot is not intended for users under the age of 13. We do not knowingly collect data from children under 13. If you believe a child has provided us with personal data, please contact us to have it removed.</p>
+
+    <h2>7. Changes to This Policy</h2>
+    <p>We may update this Privacy Policy from time to time. We will notify users of significant changes by posting the new policy on this page and updating the "Last Updated" date. Continued use of the Bot after changes constitutes acceptance.</p>
+
+    <h2>8. Contact Us</h2>
+    <p>If you have questions or concerns about this Privacy Policy, or to request data deletion, please contact us at:</p>
+    <ul>
+        <li>Email: <a href="mailto:your-email@example.com">your-email@example.com</a></li>
+        <li>Discord Support Server: <a href="https://discord.gg/your-invite">https://discord.gg/your-invite</a></li>
+    </ul>
+
+    <hr>
+    <p><em>This Privacy Policy is effective as of February 14, 2026.</em></p>
+</body>
+</html>
