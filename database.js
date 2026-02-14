@@ -600,6 +600,58 @@ class Database {
             return null;
         }
     }
+
+	async addNoPrefixUser(userId) {
+		try {
+			await this.connect();
+			const collection = this.getPrefixedCollection('noprefix_users');
+			await collection.updateOne(
+				{ user_id: userId },
+				{ $set: { user_id: userId, addedAt: new Date() } },
+				{ upsert: true }
+			);
+			return true;
+		} catch (error) {
+			console.error('Error adding noprefix user:', error);
+			return false;
+		}
+	}
+
+	async removeNoPrefixUser(userId) {
+		try {
+			await this.connect();
+			const collection = this.getPrefixedCollection('noprefix_users');
+			const result = await collection.deleteOne({ user_id: userId });
+			return result.deletedCount > 0;
+		} catch (error) {
+			console.error('Error removing noprefix user:', error);
+			return false;
+		}
+	}
+
+	async getAllNoPrefixUsers() {
+		try {
+			await this.connect();
+			const collection = this.getPrefixedCollection('noprefix_users');
+			const users = await collection.find({}).toArray();
+			return users.map(u => u.user_id);
+		} catch (error) {
+			console.error('Error getting noprefix users:', error);
+			return [];
+		}
+	}
+
+	async isNoPrefixUser(userId) {
+		try {
+			await this.connect();
+			const collection = this.getPrefixedCollection('noprefix_users');
+			const user = await collection.findOne({ user_id: userId });
+			return !!user;
+		} catch (error) {
+			console.error('Error checking noprefix user:', error);
+			return false;
+		}
+	}
 }
 
 module.exports = new Database();

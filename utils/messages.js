@@ -73,8 +73,6 @@ module.exports = {
 				const img = trackInfo.artwork.find(a => a?.url?.startsWith('http'));
 				if (img) return img.url;
 			}
-
-			// NO synthetic fallback (e.g. YouTube thumbnails) — return null if no explicit cover.
 			return null;
 		}
 
@@ -89,9 +87,9 @@ module.exports = {
 		}
 
 		embed.addFields([
-			{ name: 'Artist', value: `${emojis.butterfly} ${track.info.author || "Unknown"}`, inline: true },
-			{ name: 'Duration', value: `${emojis.butterfly} ${formatDuration(track.info.length)}`, inline: true },
-			{ name: 'Requested By', value: `${emojis.butterfly} ${(track.info.requester && track.info.requester.tag) || "Unknown"}`, inline: true }
+			{ name: 'Artist', value: `${emojis.blackbutterfly} ${track.info.author || "Unknown"}`, inline: true },
+			{ name: 'Duration', value: `${emojis.blackbutterfly} ${formatDuration(track.info.length)}`, inline: true },
+			{ name: 'Requested By', value: `${emojis.blackbutterfly} ${(track.info.requester && track.info.requester.tag) || "Unknown"}`, inline: true }
 		])
 		.setFooter({ text: 'Use ~help to see all commands' });
 		
@@ -211,6 +209,10 @@ module.exports = {
 		});
 		
 		return channel.send({ embeds: [embed] });
+	},
+	
+	info(channel, content) {
+		return channel.send(`${emojis.info} | ${content}`);
 	},
 
     queueEnded: (channel) => {
@@ -770,7 +772,6 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 					const loadingMsg = await i.channel.send(`${emojis.loading} | Loading playlist: **${selectedPlaylist.name}**...`);
 
 					try {
-						// ----- VOICE CHANNEL CHECK -----
 						if (!i.member.voice.channel) {
 							await i.channel.send(`${emojis.error} | You must be in a voice channel to play music!`);
 							setTimeout(() => loadingMsg.delete().catch(() => {}), 2000);
@@ -782,8 +783,6 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 							setTimeout(() => loadingMsg.delete().catch(() => {}), 2000);
 							return;
 						}
-						
-						// ----- PLAYER SETUP -----
 						let player = client.riffy.players.get(i.guild.id);
 						if (!player) {
 							player = client.riffy.createConnection({
@@ -802,8 +801,6 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 						if (savedVolume !== undefined) {
 							player.setVolume(savedVolume);
 						}
-
-						// ----- LOAD PLAYLIST VIA SPOTIFY PLUGIN -----
 						const playlistUrl = `https://open.spotify.com/playlist/${selectedPlaylist.id}`;
 						console.log(`🎵 Resolving Spotify playlist via plugin: ${playlistUrl}`);
 						
@@ -815,8 +812,6 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 							});
 						} catch (error) {
 							console.error('❌ Spotify plugin resolve error:', error);
-							
-							// ----- FALLBACK: MANUAL TRACK FETCHING -----
 							const { getAllPlaylistTracks } = require("./spotifyPlaylists.js");
 							const allTracks = await getAllPlaylistTracks(selectedPlaylist.id);
 							
@@ -872,8 +867,6 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 							setTimeout(() => loadingMsg.delete().catch(() => {}), 2000);
 							return;
 						}
-
-						// ----- PLUGIN SUCCESS PATH -----
 						if (result.loadType === 'playlist' && result.tracks?.length > 0) {
 							const tracks = result.tracks;
 							for (const track of tracks) {
@@ -908,7 +901,6 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 					return;
 				}
 			} else if (i.isButton()) {
-				// ----- BUTTON PAGINATION -----
 				if (i.customId.startsWith('prev_')) {
 					currentPage--;
 				} else if (i.customId.startsWith('next_')) {
@@ -979,7 +971,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 		].join('\n');
 		
 		embed.addFields({
-			name: `${emojis.butterfly} Overview`,
+			name: `${emojis.blackbutterfly} Overview`,
 			value: overviewText,
 			inline: false
 		});
@@ -991,7 +983,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 			}).join('\n');
 			
 			embed.addFields({
-				name: `${emojis.butterfly} Top Songs`,
+				name: `${emojis.blackbutterfly} Top Songs`,
 				value: songsText + `\n**───────────────────────────────────**`,
 				inline: false
 			});
@@ -1004,7 +996,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 			}).join('\n');
 			
 			embed.addFields({
-				name: `${emojis.butterfly} Top Artists`,
+				name: `${emojis.blackbutterfly} Top Artists`,
 				value: artistsText + `\n**───────────────────────────────────**`,
 				inline: false
 			});
@@ -1017,7 +1009,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 		].join('\n');
 		
 		embed.addFields({
-			name: `${emojis.butterfly} Statistics`,
+			name: `${emojis.blackbutterfly} Statistics`,
 			value: statsText,
 			inline: false
 		});
@@ -1068,7 +1060,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 		].join('\n');
 		
 		embed.addFields({
-			name: `${emojis.butterfly} Overview`,
+			name: `${emojis.blackbutterfly} Overview`,
 			value: overviewText,
 			inline: false
 		});
@@ -1080,7 +1072,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 			}).join('\n');
 			
 			embed.addFields({
-				name: `${emojis.butterfly} Top Songs`,
+				name: `${emojis.blackbutterfly} Top Songs`,
 				value: songsText + `\n**───────────────────────────────────**`,
 				inline: false
 			});
@@ -1093,7 +1085,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 			}).join('\n');
 			
 			embed.addFields({
-				name: `${emojis.butterfly} Top Artists`,
+				name: `${emojis.blackbutterfly} Top Artists`,
 				value: artistsText + `\n**───────────────────────────────────**`,
 				inline: false
 			});
@@ -1106,7 +1098,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 		].join('\n');
 		
 		embed.addFields({
-			name: `${emojis.butterfly} Statistics`,
+			name: `${emojis.blackbutterfly} Statistics`,
 			value: statsText,
 			inline: false
 		});
@@ -1157,7 +1149,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 		].join('\n');
 		
 		embed.addFields({
-			name: `${emojis.butterfly} Overview`,
+			name: `${emojis.blackbutterfly} Overview`,
 			value: overviewText,
 			inline: false
 		});
@@ -1169,7 +1161,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 			}).join('\n');
 			
 			embed.addFields({
-				name: `${emojis.butterfly} Top Songs`,
+				name: `${emojis.blackbutterfly} Top Songs`,
 				value: songsText + `\n**───────────────────────────────────**`,
 				inline: false
 			});
@@ -1182,7 +1174,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 			}).join('\n');
 			
 			embed.addFields({
-				name: `${emojis.butterfly} Top Artists`,
+				name: `${emojis.blackbutterfly} Top Artists`,
 				value: artistsText + `\n**───────────────────────────────────**`,
 				inline: false
 			});
@@ -1195,7 +1187,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 		].join('\n');
 		
 		embed.addFields({
-			name: `${emojis.butterfly} Statistics`,
+			name: `${emojis.blackbutterfly} Statistics`,
 			value: statsText,
 			inline: false
 		});

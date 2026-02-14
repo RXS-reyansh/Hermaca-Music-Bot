@@ -1,5 +1,6 @@
 require("dotenv").config();
 const config = require("./config.js");
+const ownerId = config.ownerId;
 const token = process.env.DISCORD_TOKEN || config.botToken;
 if (!token || token.length < 50) {
     console.error("❌ ERROR: Invalid or missing Discord token!");
@@ -33,6 +34,18 @@ const emojis = require("./emojis.js");
 const stickers = require("./stickers.js");
 const db = require('./database.js');
 /* const { recordSongPlay, getUserStats, getUserRank, getLeaderboard } = db; */
+const prefixCommands = [
+    'play', 'p', 'pause', 'resume', 'skip', 'stop', 's', 'lyrics', 'queue', 'q',
+    'nowplaying', 'np', 'volume', 'vol', 'servervolume', 'filter', 'shuffle',
+    'loop', 'move', 'add', 'remove', 'clear', 'status', 'ping', 'help',
+    'setspotify', 'playspotify', 'join', 'leave', 'rejoin', 'song-quote',
+    'mystats', 'leaderboard', 'resetstats', 'stats', 'afk', 'react', 'emoji',
+    'avatar', 'av', 'banner', 'bn', 'purge', 'say', 'reveal', '24/7', 'doakes',
+    'emma-heart', 'emma-heart1', 'emma-kiss', 'emma-hii', 'emma-worried',
+    'emma-rawr', 'suscat', 'doakes-surprise', 'setavatar', 'setav', 'setbanner',
+    'setbn', 'setname', 'emma-heart-st', 'emma-heart-st1', 'noprefix'
+];
+const validCommands = new Set(prefixCommands);
 
 let commandTimeouts = new Map();
 
@@ -770,6 +783,7 @@ client.once("ready", async () => {
             console.error("❌ Could not connect to database. Some features may not work.");
         } else {
             console.log('✅ Database connected');
+			client.db = db;
         }
 
         const clusterId = await db.getOrCreateClusterId();
@@ -1050,9 +1064,9 @@ client.on(Events.InteractionCreate, async interaction => {
 				}
 				
 				embed.addFields([
-					{ name: 'Artist', value: `${emojis.butterfly} ${player.current.info.author || "Unknown"}`, inline: true },
-					{ name: 'Duration', value: `${emojis.butterfly} ${formatDuration(player.current.info.length)}`, inline: true },
-					{ name: 'Requested By', value: `${emojis.butterfly} ${(player.current.info.requester && player.current.info.requester.tag) || "Unknown"}`, inline: true }
+					{ name: 'Artist', value: `${emojis.blackbutterfly} ${player.current.info.author || "Unknown"}`, inline: true },
+					{ name: 'Duration', value: `${emojis.blackbutterfly} ${formatDuration(player.current.info.length)}`, inline: true },
+					{ name: 'Requested By', value: `${emojis.blackbutterfly} ${(player.current.info.requester && player.current.info.requester.tag) || "Unknown"}`, inline: true }
 				])
 				.setFooter({ text: 'Use /help to see all commands' });
 				
@@ -1430,7 +1444,7 @@ client.on(Events.InteractionCreate, async interaction => {
                     const attachment = new AttachmentBuilder(imageBuffer, { name: 'song-quote.png' });
                     const embed = new EmbedBuilder()
                         .setColor(config.embedColor)
-                        .setTitle(`${emojis.butterfly} Song Quote Generated`)
+                        .setTitle(`${emojis.blackbutterfly} Song Quote Generated`)
                         .setDescription(`**${track.info.title}** - ${track.info.author || 'Unknown Artist'}`)
                         .setImage('attachment://song-quote.png')
                         .setFooter({ 
@@ -2041,9 +2055,9 @@ async function handleNowPlaying(context, isInteraction = false) {
         }  
         
         embed.addFields([
-            { name: 'Artist', value: `${emojis.butterfly} ${currentTrack.info.author || "Unknown"}`, inline: true },
-            { name: 'Duration', value: `${emojis.butterfly} ${formatDuration(currentTrack.info.length)}`, inline: true },
-            { name: 'Requested By', value: `${emojis.butterfly} ${(currentTrack.info.requester && currentTrack.info.requester.tag) || "Unknown"}`, inline: true }
+            { name: 'Artist', value: `${emojis.blackbutterfly} ${currentTrack.info.author || "Unknown"}`, inline: true },
+            { name: 'Duration', value: `${emojis.blackbutterfly} ${formatDuration(currentTrack.info.length)}`, inline: true },
+            { name: 'Requested By', value: `${emojis.blackbutterfly} ${(currentTrack.info.requester && currentTrack.info.requester.tag) || "Unknown"}`, inline: true }
         ])
         .setFooter({ text: 'Use /help to see all commands' });
         
@@ -2695,7 +2709,7 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
         const attachment = new AttachmentBuilder(imageBuffer, { name: 'song-quote.png' });
         const embed = new EmbedBuilder()
             .setColor(config.embedColor)
-            .setTitle(`${emojis.butterfly} Song Quote Generated`)
+            .setTitle(`${emojis.blackbutterfly} Song Quote Generated`)
             .setDescription(`**${track.info.title}** - ${track.info.author || 'Unknown Artist'}`)
             .setImage('attachment://song-quote.png')
             .setFooter({ 
@@ -3190,158 +3204,11 @@ function cancelInactivityTimer(guildId) {
     }
 }
 
-async function sendAfkEmbed(message, afkUser, afkData) {
-    const member = message.guild?.members.cache.get(afkUser.id);
-    const displayName = member?.displayName || afkUser.globalName || afkUser.username;
-    
-    const timestamp = Math.floor(new Date(afkData.timestamp).getTime() / 1000);
-    const relativeTime = `<t:${timestamp}:R>`;
+async function handlePrefixCommand(message, cmd, args) {
+	const client = message.client;
+	const { config, db } = client;
 
-    const embed = new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle(`${emojis.redblackcross} ${displayName} is AFK.`)
-        .addFields(
-            { name: 'AFK since', value: relativeTime, inline: false },
-            { name: 'Reason provided', value: afkData.reason || 'AFK', inline: false }
-        )
-        .setFooter({ 
-            text: `Mentioned by ${message.author.displayName || message.author.username}`,
-            iconURL: message.author.displayAvatarURL()
-        })
-        .setTimestamp();
-
-    if (afkData.imageUrl) {
-        embed.setImage(afkData.imageUrl);
-    }
-
-    await message.channel.send({ embeds: [embed] }).catch(() => {});
-}
-const buildImageEmbed = (title, imageUrl, requester) => {
-    return new EmbedBuilder()
-        .setColor(config.embedColor)
-        .setTitle(title)
-        .setDescription(`[Download](${imageUrl})`)
-        .setImage(imageUrl)
-        .setFooter({ 
-            text: `Requested by ${requester.tag}`,
-            iconURL: requester.displayAvatarURL({ dynamic: true })
-        })
-        .setTimestamp();
-};
-const sendImageWithDMButton = async (channel, embed, requester) => {
-    const row = new ActionRowBuilder()
-        .addComponents(
-            new ButtonBuilder()
-                .setCustomId(`image_dm_${requester.id}`)
-                .setLabel('Send in DM')
-                .setStyle(ButtonStyle.Secondary)
-        );
-
-    const sentMsg = await channel.send({ embeds: [embed], components: [row] });
-
-    const filter = i => i.customId === `image_dm_${requester.id}` && i.user.id === requester.id;
-    const collector = sentMsg.createMessageComponentCollector({ filter, time: 120000 });
-
-    collector.on('collect', async i => {
-        try {
-            await i.user.send({ embeds: [embed.setFooter(null).setTimestamp()] });
-            await i.reply({ content: `${emojis.success} Image sent to your DMs!`, ephemeral: true });
-        } catch {
-            await i.reply({ 
-                content: `${emojis.error} Could not send you a DM. Please make sure your DMs are open.`, 
-                ephemeral: true 
-            });
-        }
-    });
-
-    collector.on('end', async () => {
-        const disabledRow = ActionRowBuilder.from(row).setComponents(
-            row.components.map(c => ButtonBuilder.from(c).setDisabled(true))
-        );
-        await sentMsg.edit({ components: [disabledRow] }).catch(() => {});
-    });
-};
-
-/* function getDurationString(track) {
-    if (track.info.stream || track.info.isStream) return 'LIVE';
-    const duration = track.info.length;
-    if (!duration || duration <= 0 || isNaN(duration)) {
-        return 'N/A';
-    }
-    const seconds = Math.floor((duration / 1000) % 60);
-    const minutes = Math.floor((duration / (1000 * 60)) % 60);
-    const hours = Math.floor(duration / (1000 * 60 * 60));
-    if (hours > 0) {
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-} */
-
-client.on("messageCreate", async (message) => {
-    if (message.author.bot) return;
-	if (!message.content.startsWith(client.prefix)) {
-		try {
-			const authorAfk = await db.getAFK(message.author.id);
-			if (authorAfk) {
-				await db.removeAFK(message.author.id);
-				const welcomeEmbed = new EmbedBuilder()
-					.setColor(config.embedColor)
-					.setDescription(`${emojis.success} Welcome back! Your AFK status has been removed.`)
-					.setTimestamp();
-				await message.channel.send({ embeds: [welcomeEmbed] }).catch(() => {});
-			}
-		} catch (afkError) {
-			console.error('Error removing AFK status:', afkError);
-		}
-		const mentionedUsers = message.mentions.users.filter(u => !u.bot);
-		for (const [userId, user] of mentionedUsers) {
-			try {
-				const afkData = await db.getAFK(userId);
-				if (afkData) {
-					await sendAfkEmbed(message, user, afkData);
-				}
-			} catch (afkError) {
-				console.error('Error fetching mentioned AFK:', afkError);
-			}
-		}
-		return;
-	}
-    
-    const args = message.content.slice(client.prefix.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
-    
-    const voiceCommands = ['play', 'p', 'playspotify', 'pause', 'resume', 'skip', 'stop', 
-                         'queue', 'q', 'nowplaying', 'np', 'volume', 'vol', 'servervolume', 
-                         'shuffle', 'loop', 'remove', 'clear', 'status', 'filter', 'move', 'add'];
-    
-    if (voiceCommands.includes(command)) {
-        if (!message.member.voice.channel) {
-            return message.reply({ 
-                content: `${emojis.error} | You must be in a voice channel!`,
-                flags: MessageFlags.Ephemeral
-            });
-        }
-    }
-    
-    try {
-		
-		if ((command === 'volume' || command === 'vol') && 
-            args.length >= 2 && 
-            args[0].toLowerCase() === 'six' && 
-            args[1].toLowerCase() === 'seven') {
-            await handleVolume(message, 67, false);
-            return;
-        }
-		
-		if ((command === 'volume' || command === 'vol') && 
-            args.length >= 2 && 
-            args[0].toLowerCase() === 'six' && 
-            args[1].toLowerCase() === 'nine') {
-            await handleVolume(message, 69, false);
-            return;
-        }
-		
-        switch (command) {
+    switch (cmd) {
             case 'play':
             case 'p': {
                 const query = args.join(' ');
@@ -3405,12 +3272,20 @@ client.on("messageCreate", async (message) => {
             }
             
             case 'volume':
-            case 'vol': {
-                const volume = parseInt(args[0]);
-                if (isNaN(volume)) return message.reply(`${emojis.error} | Please provide a valid volume level (0-100)!`);
-                await handleVolume(message, volume, false);
-                break;
-            }
+			case 'vol': {
+				if (args.length >= 2 && args[0].toLowerCase() === 'six' && args[1].toLowerCase() === 'seven') {
+					await handleVolume(message, 67, false);
+					break;
+				}
+				if (args.length >= 2 && args[0].toLowerCase() === 'six' && args[1].toLowerCase() === 'nine') {
+					await handleVolume(message, 69, false);
+					break;
+				}
+				const volume = parseInt(args[0]);
+				if (isNaN(volume)) return message.reply(`${emojis.error} | Please provide a valid volume level (0-100)!`);
+				await handleVolume(message, volume, false);
+				break;
+			}
             
             case 'servervolume': {
                 const volume = parseInt(args[0]);
@@ -3685,7 +3560,7 @@ client.on("messageCreate", async (message) => {
 						}
 						const avatarURL = targetGuild.iconURL({ dynamic: true, size: 4096 });
 						const embed = buildImageEmbed(
-							`${emojis.butterfly} ${targetGuild.name}'s icon`,
+							`${emojis.blackbutterfly} ${targetGuild.name}'s icon`,
 							avatarURL,
 							message.author
 						);
@@ -3736,10 +3611,10 @@ client.on("messageCreate", async (message) => {
 						let avatarURL, title;
 						if (i.customId.startsWith('server_avatar')) {
 							avatarURL = member.displayAvatarURL({ dynamic: true, size: 4096 });
-							title = `${emojis.butterfly} ${targetUser.username}'s server avatar`;
+							title = `${emojis.blackbutterfly} ${targetUser.username}'s server avatar`;
 						} else {
 							avatarURL = targetUser.displayAvatarURL({ dynamic: true, size: 4096 });
-							title = `${emojis.butterfly} ${targetUser.username}'s global avatar`;
+							title = `${emojis.blackbutterfly} ${targetUser.username}'s global avatar`;
 						}
 
 						const embed = buildImageEmbed(title, avatarURL, message.author);
@@ -3758,7 +3633,7 @@ client.on("messageCreate", async (message) => {
 				} else {
 					const avatarURL = targetUser.displayAvatarURL({ dynamic: true, size: 4096 });
 					const embed = buildImageEmbed(
-						`${emojis.butterfly} ${targetUser.username}'s avatar`,
+						`${emojis.blackbutterfly} ${targetUser.username}'s avatar`,
 						avatarURL,
 						message.author
 					);
@@ -3789,7 +3664,7 @@ client.on("messageCreate", async (message) => {
 						}
 						const bannerURL = targetGuild.bannerURL({ dynamic: true, size: 4096 });
 						const embed = buildImageEmbed(
-							`${emojis.butterfly} ${targetGuild.name}'s banner`,
+							`${emojis.blackbutterfly} ${targetGuild.name}'s banner`,
 							bannerURL,
 							message.author
 						);
@@ -3817,10 +3692,10 @@ client.on("messageCreate", async (message) => {
 					let bannerURL, title;
 					if (type === 'server' && member && member.banner) {
 						bannerURL = member.bannerURL({ dynamic: true, size: 4096 });
-						title = `${emojis.butterfly} ${targetUser.username}'s server banner`;
+						title = `${emojis.blackbutterfly} ${targetUser.username}'s server banner`;
 					} else if (type === 'global' && targetUser.banner) {
 						bannerURL = targetUser.bannerURL({ dynamic: true, size: 4096 });
-						title = `${emojis.butterfly} ${targetUser.username}'s global banner`;
+						title = `${emojis.blackbutterfly} ${targetUser.username}'s global banner`;
 					} else {
 						return messages.error(message.channel, 'That banner is no longer available.');
 					}
@@ -4716,11 +4591,222 @@ client.on("messageCreate", async (message) => {
 				break;
 			}
 			
+			/* NO FUCKING PREFIX */
+			case 'noprefix':
+			case 'nop': {
+				try {
+					if (message.author.id !== ownerId) {
+						return messages.error(message.channel, `${emojis.blackcrown} This command is reserved to bot owner only!`);
+					}
+					const subCmd = args[0] ? args[0].toLowerCase() : null;
+					if (!subCmd) {
+						return messages.error(message.channel, `Usage: \`noprefix list\`, \`noprefix <user>\` (add), or \`noprefix remove <user>\``);
+					}
+					if (subCmd === 'list') {
+						const users = await db.getAllNoPrefixUsers();
+						if (users.length === 0) {
+							return messages.info(message.channel, 'No users have noprefix access (besides owner of the bot).');
+						}
+						const userMentions = users.map(id => `<@${id}>`).join('\n');
+						const embed = new EmbedBuilder()
+							.setColor(config.embedColor)
+							.setTitle(`${emojis.blackbutterfly} Noprefix Users`)
+							.setDescription(userMentions)
+							.setFooter({ text: `Total: ${users.length}` });
+						return message.channel.send({ embeds: [embed] });
+					}
+					if (subCmd === 'remove') {
+						if (!args[1]) {
+							return messages.error(message.channel, 'Please specify a user to remove.');
+						}
+						const userId = args[1].replace(/[<@!>]/g, '');
+						let user;
+						try {
+							user = await client.users.fetch(userId, { force: true });
+						} catch (fetchError) {
+							console.error('❌ User fetch error:', fetchError);
+							return messages.error(message.channel, 'User not found or not a valid ID.');
+						}
+						const removed = await db.removeNoPrefixUser(userId);
+						if (removed) {
+							return messages.success(message.channel, `Removed noprefix access from <@${user.id}>`);
+						} else {
+							return messages.error(message.channel, 'That user does not have noprefix access.');
+						}
+					} else {
+						const userId = args[0].replace(/[<@!>]/g, '');
+						let user;
+						try {
+							user = await client.users.fetch(userId, { force: true });
+						} catch (fetchError) {
+							console.error('❌ User fetch error:', fetchError);
+							return messages.error(message.channel, 'User not found or not a valid ID.');
+						}
+						const added = await db.addNoPrefixUser(userId);
+						if (added) {
+							return messages.success(message.channel, `Added noprefix access for <@${user.id}>`);
+						} else {
+							return messages.error(message.channel, 'Failed to add user.');
+						}
+					}
+				} catch (error) {
+					console.error('❌ noprefix command error:', error);
+					return messages.error(message.channel, 'An unexpected error occurred.');
+				}
+				break;
+			}
+			
             default: {
                 message.reply(`${emojis.info} | Unknown command! Use \`${client.prefix}help\` to see all commands.`);
                 break;
             }
         }
+}
+
+async function sendAfkEmbed(message, afkUser, afkData) {
+    const member = message.guild?.members.cache.get(afkUser.id);
+    const displayName = member?.displayName || afkUser.globalName || afkUser.username;
+    
+    const timestamp = Math.floor(new Date(afkData.timestamp).getTime() / 1000);
+    const relativeTime = `<t:${timestamp}:R>`;
+
+    const embed = new EmbedBuilder()
+        .setColor(config.embedColor)
+        .setTitle(`${emojis.redblackcross} ${displayName} is AFK.`)
+        .addFields(
+            { name: 'AFK since', value: relativeTime, inline: false },
+            { name: 'Reason provided', value: afkData.reason || 'AFK', inline: false }
+        )
+        .setFooter({ 
+            text: `Mentioned by ${message.author.displayName || message.author.username}`,
+            iconURL: message.author.displayAvatarURL()
+        })
+        .setTimestamp();
+
+    if (afkData.imageUrl) {
+        embed.setImage(afkData.imageUrl);
+    }
+
+    await message.channel.send({ embeds: [embed] }).catch(() => {});
+}
+const buildImageEmbed = (title, imageUrl, requester) => {
+    return new EmbedBuilder()
+        .setColor(config.embedColor)
+        .setTitle(title)
+        .setDescription(`[Download](${imageUrl})`)
+        .setImage(imageUrl)
+        .setFooter({ 
+            text: `Requested by ${requester.tag}`,
+            iconURL: requester.displayAvatarURL({ dynamic: true })
+        })
+        .setTimestamp();
+};
+const sendImageWithDMButton = async (channel, embed, requester) => {
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId(`image_dm_${requester.id}`)
+                .setLabel('Send in DM')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+    const sentMsg = await channel.send({ embeds: [embed], components: [row] });
+
+    const filter = i => i.customId === `image_dm_${requester.id}` && i.user.id === requester.id;
+    const collector = sentMsg.createMessageComponentCollector({ filter, time: 120000 });
+
+    collector.on('collect', async i => {
+        try {
+            await i.user.send({ embeds: [embed.setFooter(null).setTimestamp()] });
+            await i.reply({ content: `${emojis.success} Image sent to your DMs!`, ephemeral: true });
+        } catch {
+            await i.reply({ 
+                content: `${emojis.error} Could not send you a DM. Please make sure your DMs are open.`, 
+                ephemeral: true 
+            });
+        }
+    });
+
+    collector.on('end', async () => {
+        const disabledRow = ActionRowBuilder.from(row).setComponents(
+            row.components.map(c => ButtonBuilder.from(c).setDisabled(true))
+        );
+        await sentMsg.edit({ components: [disabledRow] }).catch(() => {});
+    });
+};
+
+/* function getDurationString(track) {
+    if (track.info.stream || track.info.isStream) return 'LIVE';
+    const duration = track.info.length;
+    if (!duration || duration <= 0 || isNaN(duration)) {
+        return 'N/A';
+    }
+    const seconds = Math.floor((duration / 1000) % 60);
+    const minutes = Math.floor((duration / (1000 * 60)) % 60);
+    const hours = Math.floor(duration / (1000 * 60 * 60));
+    if (hours > 0) {
+        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    }
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+} */
+
+client.on("messageCreate", async (message) => {
+    if (message.author.bot) return;
+    const hasNoPrefix = (message.author.id === ownerId) || await db.isNoPrefixUser(message.author.id);
+    if (hasNoPrefix && !message.content.startsWith(client.prefix)) {
+        const args = message.content.trim().split(/ +/);
+        const cmdName = args.shift().toLowerCase();
+        if (validCommands.has(cmdName)) {
+            await handlePrefixCommand(message, cmdName, args);
+            return;
+        }
+    }
+    if (!message.content.startsWith(client.prefix)) {
+        try {
+            const authorAfk = await db.getAFK(message.author.id);
+            if (authorAfk) {
+                await db.removeAFK(message.author.id);
+                const welcomeEmbed = new EmbedBuilder()
+                    .setColor(config.embedColor)
+                    .setDescription(`${emojis.success} Welcome back! Your AFK status has been removed.`)
+                    .setTimestamp();
+                await message.channel.send({ embeds: [welcomeEmbed] }).catch(() => {});
+            }
+        } catch (afkError) {
+            console.error('Error removing AFK status:', afkError);
+        }
+        
+        const mentionedUsers = message.mentions.users.filter(u => !u.bot);
+        for (const [userId, user] of mentionedUsers) {
+            try {
+                const afkData = await db.getAFK(userId);
+                if (afkData) {
+                    await sendAfkEmbed(message, user, afkData);
+                }
+            } catch (afkError) {
+                console.error('Error fetching mentioned AFK:', afkError);
+            }
+        }
+        return;
+    }
+    const args = message.content.slice(client.prefix.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
+    
+    const voiceCommands = ['play', 'p', 'playspotify', 'pause', 'resume', 'skip', 'stop', 
+                         'queue', 'q', 'nowplaying', 'np', 'volume', 'vol', 'servervolume', 
+                         'shuffle', 'loop', 'remove', 'clear', 'status', 'filter', 'move', 'add'];
+    
+    if (voiceCommands.includes(command)) {
+        if (!message.member.voice.channel) {
+            return message.reply({ 
+                content: `${emojis.error} | You must be in a voice channel!`,
+                flags: MessageFlags.Ephemeral
+            });
+        }
+    }
+    
+    try {      
+        await handlePrefixCommand(message, command, args);     
     } catch (error) {
         message.reply(`${emojis.error} | An error occurred while processing your command!`);
     }

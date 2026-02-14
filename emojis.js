@@ -5,7 +5,7 @@ module.exports = {
     info: "<a:info:1471741510100713543>",
     time: "<:time:1350022772067274783>",
     loading: "<a:loading:1471742711412293632>",
-	butterfly: "<a:Black_Butterfly:1471741362775785533>",
+	blackbutterfly: "<a:Black_Butterfly:1471741362775785533>",
 	blackheart: "<:black_lil_heart:1471742221152817152>",
 	playboy: "<:PLAYBOY:1471741307683868796>",
 	star: "<a:satan:1471741397810942040>",

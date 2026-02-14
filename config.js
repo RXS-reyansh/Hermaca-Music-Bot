@@ -2,6 +2,7 @@ module.exports = {
     botToken: process.env.DISCORD_TOKEN,
     clientId: process.env.DISCORD_CLIENT_ID,
     prefix: "~",
+	ownerId: '922491166149214218',
     embedColor: "#b4f8c8",
     spotify: {
         clientId: process.env.SPOTIFY_CLIENT_ID,
