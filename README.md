@@ -98,6 +98,11 @@ BOT_IDENTIFIER=			// For MongoDB Collection
 
 Contributions are welcome! Feel free to submit a Pull Request.
 
+## Privacy Policy and Terms of Services
+
+- 📋 [Privacy Policy](https://rxs-reyansh.github.io/Hermaca-Music-Bot/privacy.html)
+- 📋 [Terms of Services](https://rxs-reyansh.github.io/Hermaca-Music-Bot/terms.html)
+  
 ## License
 
 MIT License - see the [LICENSE](LICENSE) file for details.
