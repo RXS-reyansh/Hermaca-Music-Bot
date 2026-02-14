@@ -81,6 +81,9 @@ BOT_IDENTIFIER=			// For MongoDB Collection
 ![Song Quote](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/song-quote1.png?raw=true)
 ![Generated Song Quote Image](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/song-quote2.png?raw=true)
 
+### Statistics of a user
+![Statistics](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/stats.png?raw=true)
+
 ###### Thanks to anvesha.67 for using the commands of the bot and providing these beautiful screenshots!
 
 ## Support
