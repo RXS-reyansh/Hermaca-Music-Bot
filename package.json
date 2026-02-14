@@ -1,21 +1,41 @@
 {
-    "name": "discord-music-bot",
+    "name": "hermaca-discord-music-bot",
     "version": "1.0.0",
-    "description": "A Discord music bot using Riffy and Lavalink",
+    "description": "A powerful Discord music bot with Spotify integration, lyrics, 24/7 mode, and statistics tracking",
     "main": "index.js",
     "scripts": {
-        "start": "node index.js"
+        "start": "node index.js",
+        "dev": "node index.js"
     },
     "author": {
-        "name": "Friday"
+        "name": "Reyansh",
+        "email": "reyansh.ftw@gmail.com",
+        "url": "https://github.com/RXS-reyansh"
     },
     "keywords": [
         "discord",
         "music",
         "bot",
         "riffy",
-        "lavalink"
+        "lavalink",
+        "spotify",
+        "youtube",
+        "24-7",
+        "music-bot",
+        "discordjs"
     ],
+    "license": "MIT",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/RXS-reyansh/Hermaca-Music-Bot.git"
+    },
+    "bugs": {
+        "url": "https://github.com/RXS-reyansh/Hermaca-Music-Bot/issues"
+    },
+    "homepage": "https://github.com/RXS-reyansh/Hermaca-Music-Bot#readme",
+    "engines": {
+        "node": ">=16.9.0"
+    },
     "dependencies": {
         "axios": "^1.13.2",
         "canvas": "^2.11.2",
