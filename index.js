@@ -44,7 +44,7 @@ process.on('unhandledRejection', (reason, promise) => {
     }
 });
 
-async function getHeavenHostingIP() {
+async function getHostingServiceIP() {
     return new Promise((resolve) => {
         const services = [
             'https://api.ipify.org?format=json',
@@ -55,10 +55,26 @@ async function getHeavenHostingIP() {
         
         const https = require('https');
         let currentService = 0;
+
+        const hostingServices = {
+
+            'Asterix': '89.106.84.76',
+            'Heaven': '23.153.72.157'
+        };
+        
+        function getHostingName(ip) {
+
+            const hosting = 
+                ip === hostingServices.Asterix ? 'Asterix' :
+                ip === hostingServices.Heaven ? 'Heaven' :
+                'Unknown';
+            
+            return hosting;
+        }
         
         function tryNextService() {
             if (currentService >= services.length) {
-                console.log("❌ Could not determine Asterix Hosting IP");
+                console.log("❌ Could not determine hosting service IP");
                 resolve(null);
                 return;
             }
@@ -80,9 +96,9 @@ async function getHeavenHostingIP() {
                         }
                         
                         if (ip && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
-
-                            console.log(`🌐🌐🌐 Asterix HOSTING IP ADDRESS: ${ip}/32 (mask /32) 🌐🌐🌐`);
-                            resolve(ip);
+                            const hosting = getHostingName(ip);
+                            console.log(`🌐🌐🌐 ${hosting} HOSTING IP ADDRESS: ${ip}/32 (mask /32) 🌐🌐🌐`);
+                            resolve({ ip, hosting });
                         } else {
                             tryNextService();
                         }
@@ -711,7 +727,11 @@ client.once("ready", async () => {
     
     try {
 
-        await getHeavenHostingIP();
+        const hostingInfo = await getHostingServiceIP();
+		if (hostingInfo) {
+			client.hostingService = hostingInfo.hosting;
+			client.hostingIP = hostingInfo.ip;
+		}
 
         console.log('Connecting to database...');
         const connected = await db.connect();
@@ -1253,7 +1273,7 @@ client.on(Events.InteractionCreate, async interaction => {
                             inline: false
                         }
                     )
-                    .setFooter({ text: "Database on MongoDB • Powered by Asterix Hosting" })
+                    .setFooter({ text: `Database on MongoDB • Powered by ${client.hostingService || 'Unknown'} Hosting` })
                     .setTimestamp();
 
                 await interaction.editReply({ embeds: [embed] });
@@ -2245,7 +2265,7 @@ async function handlePing(context, isInteraction = false) {
                         inline: false
                     }
                 )
-                .setFooter({ text: "Database on MongoDB • Powered by Asterix Hosting" })
+                .setFooter({ text: `Database on MongoDB • Powered by ${client.hostingService || 'Unknown'} Hosting` })
                 .setTimestamp();
 
             await context.editReply({ embeds: [embed] });
@@ -2553,7 +2573,7 @@ function createPingEmbed(restLatency, wsLatency, clusterId, shard) {
                 inline: false
             }
         )
-        .setFooter({ text: "Database on MongoDB • Powered by Asterix Hosting" })
+        .setFooter({ text: `Database on MongoDB • Powered by ${client.hostingService || 'Unknown'} Hosting` })
         .setTimestamp();
 }
 async function handleSongQuote(context, rawText, isInteraction = false) {
@@ -4196,9 +4216,9 @@ async function loginWithRetry(retries = 3, delay = 10000) {
             console.error(`❌ Login attempt ${attempt} failed: ${error.message}`);
             
             if (error.message.includes('429') || error.message.includes('rate limit')) {
-                console.error('⚠️ Rate limit detected! This is likely because Asterix Hosting\'s IP is being rate limited by Discord.');
+                console.error(`⚠️ Rate limit detected! This is likely because ${client.hostingService || 'your hosting'} Hosting\'s IP is being rate limited by Discord.`);
                 console.error('💡 Solutions:');
-                console.error('1. Contact Asterix Hosting support about Discord API rate limits');
+				console.error(`1. Contact ${client.hostingService || 'your hosting'} Hosting support about Discord API rate limits`);
                 console.error('2. Ask them to whitelist Discord API endpoints');
                 console.error('3. Consider using a different hosting provider');
                 console.error('4. Wait a few hours and try again');
@@ -4233,9 +4253,9 @@ loginWithRetry(3, 30000).then(success => {
         console.error("1. ✅ Token is valid (checked)");
         console.error("2. ✅ Config is loaded (checked)");
         console.error("3. ❌ Discord API is rate limiting (HTTP 429 detected)");
-        console.error("4. ⚠️ This is a Asterix HOSTING SPECIFIC ISSUE");
+        console.error(`4. ⚠️ This is a ${client.hostingService || 'your hosting'} SPECIFIC ISSUE`);
         console.error("\n💡 Immediate solutions:");
-        console.error("• Contact Asterix Hosting support: Tell them 'Discord API is rate limiting my bot (HTTP 429)'");
+        console.error(`• Contact ${client.hostingService || 'your hosting'} support: Tell them 'Discord API is rate limiting my bot (HTTP 429)'`);
         console.error("• Ask them to whitelist Discord API endpoints");
         console.error("• Consider switching to a different hosting provider");
         console.error("• Try again in a few hours");
