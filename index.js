@@ -4596,7 +4596,6 @@ async function handlePrefixCommand(message, cmd, args) {
 			case 'nop': {
 				try {
 					if (message.author.id !== ownerId) {
-						return messages.error(message.channel, );
 						return message.reply(`${emojis.blackcrown} This command is reserved to bot owner only!`);
 					}
 					const subCmd = args[0] ? args[0].toLowerCase() : null;
