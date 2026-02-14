@@ -51,18 +51,6 @@ A feature-rich Discord music bot built with Discord.js, Riffy, and Lavalink. Thi
 
 > **Note:** All commands work as slash commands! Traditional prefix commands (`~`) are also available.
 
-## .env file format
-
-```
-DISCORD_TOKEN= 			// Token of BOT
-DISCORD_CLIENT_ID= 		// Client ID of BOT
-SPOTIFY_CLIENT_SECRET= 	// For Spotify Playback
-SPOTIFY_CLIENT_ID= 		// For Spotify Playback
-GENIUS_TOKEN= 			// For Lyrics
-MONGO_URI=				// MongoDB
-BOT_IDENTIFIER=			// For MongoDB Collection
-```
-
 ## Screenshots of a user using the Bot
 
 ### Now Playing
@@ -86,10 +74,24 @@ BOT_IDENTIFIER=			// For MongoDB Collection
 
 ###### Thanks to anvesha.67 for using the commands of the bot and providing these beautiful screenshots!
 
+<hr>
+## .env file format
+
+```
+DISCORD_TOKEN= 			// Token of BOT
+DISCORD_CLIENT_ID= 		// Client ID of BOT
+SPOTIFY_CLIENT_SECRET= 	// For Spotify Playback
+SPOTIFY_CLIENT_ID= 		// For Spotify Playback
+GENIUS_TOKEN= 			// For Lyrics
+MONGO_URI=				// MongoDB
+BOT_IDENTIFIER=			// For MongoDB Collection
+```
+
 ## Support
 
 - 📌 [GitHub Issues](https://github.com/RXS-reyansh/Hermaca-Music-Bot/issues)
 - 💬 [Discord Support Server](https://discord.gg/nVfAGH9G67)
+- ✨ Author's Discord Username - __reyansh__
 
 ## Contributing
 
