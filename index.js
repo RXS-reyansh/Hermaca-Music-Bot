@@ -2916,6 +2916,51 @@ async function sendAfkEmbed(message, afkUser, afkData) {
 
     await message.channel.send({ embeds: [embed] }).catch(() => {});
 }
+const buildImageEmbed = (title, imageUrl, requester) => {
+    return new EmbedBuilder()
+        .setColor(config.embedColor)
+        .setTitle(title)
+        .setDescription(`[Download](${imageUrl})`)
+        .setImage(imageUrl)
+        .setFooter({ 
+            text: `Requested by ${requester.tag}`,
+            iconURL: requester.displayAvatarURL({ dynamic: true })
+        })
+        .setTimestamp();
+};
+const sendImageWithDMButton = async (channel, embed, requester) => {
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder()
+                .setCustomId(`image_dm_${requester.id}`)
+                .setLabel('Send in DM')
+                .setStyle(ButtonStyle.Secondary)
+        );
+
+    const sentMsg = await channel.send({ embeds: [embed], components: [row] });
+
+    const filter = i => i.customId === `image_dm_${requester.id}` && i.user.id === requester.id;
+    const collector = sentMsg.createMessageComponentCollector({ filter, time: 120000 });
+
+    collector.on('collect', async i => {
+        try {
+            await i.user.send({ embeds: [embed.setFooter(null).setTimestamp()] });
+            await i.reply({ content: `${emojis.success} Image sent to your DMs!`, ephemeral: true });
+        } catch {
+            await i.reply({ 
+                content: `${emojis.error} Could not send you a DM. Please make sure your DMs are open.`, 
+                ephemeral: true 
+            });
+        }
+    });
+
+    collector.on('end', async () => {
+        const disabledRow = ActionRowBuilder.from(row).setComponents(
+            row.components.map(c => ButtonBuilder.from(c).setDisabled(true))
+        );
+        await sentMsg.edit({ components: [disabledRow] }).catch(() => {});
+    });
+};
 
 /* function getDurationString(track) {
     if (track.info.stream || track.info.isStream) return 'LIVE';
@@ -3309,32 +3354,146 @@ client.on("messageCreate", async (message) => {
 			
 			case 'avatar':
 			case 'av': {
-
 				let targetUser = message.author;
+				let targetGuild = null;
+
 				if (args.length > 0) {
-					const mention = args[0].match(/^<@!?(\d+)>$/);
-					const userId = mention ? mention[1] : args[0];
-					try {
-						targetUser = await client.users.fetch(userId);
-					} catch {
-						return messages.error(message.channel, `${emojis.error} | Invalid user!`);
+					const firstArg = args[0].toLowerCase();
+
+					if (firstArg === 'bot') {
+						targetUser = client.user;
+					} else if (firstArg === 'server') {
+						targetGuild = message.guild;
+						if (!targetGuild.icon) {
+							return messages.error(message.channel, `${emojis.error} This server does not have an icon.`);
+						}
+						const avatarURL = targetGuild.iconURL({ dynamic: true, size: 4096 });
+						const embed = buildImageEmbed(
+							`${emojis.butterfly} ${targetGuild.name}'s icon`,
+							avatarURL,
+							message.author
+						);
+						return sendImageWithDMButton(message.channel, embed, message.author);
+					} else {
+						const mention = args[0].match(/^<@!?(\d+)>$/);
+						const userId = mention ? mention[1] : args[0];
+						try {
+							targetUser = await client.users.fetch(userId);
+						} catch {
+							return messages.error(message.channel, `${emojis.error} Invalid user!`);
+						}
 					}
 				}
+				const member = message.guild.members.cache.get(targetUser.id);
+				const hasServerAvatar = member && member.avatar;
 
-				const avatarURL = targetUser.displayAvatarURL({ dynamic: true, size: 4096 });
+				if (hasServerAvatar) {
+					const promptEmbed = new EmbedBuilder()
+						.setColor(config.embedColor)
+						.setTitle(`${emojis.info} Choose Avatar`)
+						.setDescription(`${targetUser.username} has a server‑specific avatar. Which one would you like to see?`)
+						.setFooter({ text: 'You have 60 seconds to decide' });
 
-				const embed = new EmbedBuilder()
-					.setColor(config.embedColor)
-					.setTitle(`${emojis.butterfly} ${targetUser.username}'s avatar`)
-					.setDescription(`[Download](${avatarURL})`)
-					.setImage(avatarURL)
-					.setFooter({ 
-						text: `Requested by ${message.author.tag}`,
-						iconURL: message.author.displayAvatarURL({ dynamic: true })
-					})
-					.setTimestamp();
+					const row = new ActionRowBuilder()
+						.addComponents(
+							new ButtonBuilder()
+								.setCustomId(`server_avatar_${targetUser.id}`)
+								.setLabel('Server Avatar')
+								.setStyle(ButtonStyle.Success),
+							new ButtonBuilder()
+								.setCustomId(`global_avatar_${targetUser.id}`)
+								.setLabel('Global Avatar')
+								.setStyle(ButtonStyle.Success)
+						);
 
-				await message.channel.send({ embeds: [embed] });
+					const promptMsg = await message.channel.send({ embeds: [promptEmbed], components: [row] });
+
+					const filter = i => i.user.id === message.author.id;
+					const collector = promptMsg.createMessageComponentCollector({ filter, time: 60000 });
+
+					collector.on('collect', async i => {
+						await i.deferUpdate();
+						collector.stop();
+
+						let avatarURL, title;
+						if (i.customId.startsWith('server_avatar')) {
+							avatarURL = member.displayAvatarURL({ dynamic: true, size: 4096 });
+							title = `${emojis.butterfly} ${targetUser.username}'s server avatar`;
+						} else {
+							avatarURL = targetUser.displayAvatarURL({ dynamic: true, size: 4096 });
+							title = `${emojis.butterfly} ${targetUser.username}'s global avatar`;
+						}
+
+						const embed = buildImageEmbed(title, avatarURL, message.author);
+						await promptMsg.delete();
+						await sendImageWithDMButton(message.channel, embed, message.author);
+					});
+
+					collector.on('end', async (collected, reason) => {
+						if (reason === 'time') {
+							const disabledRow = ActionRowBuilder.from(row).setComponents(
+								row.components.map(c => ButtonBuilder.from(c).setDisabled(true))
+							);
+							await promptMsg.edit({ components: [disabledRow] }).catch(() => {});
+						}
+					});
+				} else {
+					const avatarURL = targetUser.displayAvatarURL({ dynamic: true, size: 4096 });
+					const embed = buildImageEmbed(
+						`${emojis.butterfly} ${targetUser.username}'s avatar`,
+						avatarURL,
+						message.author
+					);
+					await sendImageWithDMButton(message.channel, embed, message.author);
+				}
+				break;
+			}
+
+			case 'banner':
+			case 'bn': {
+				let targetUser = message.author;
+				let targetGuild = null;
+				let bannerURL;
+
+				if (args.length > 0) {
+					const firstArg = args[0].toLowerCase();
+
+					if (firstArg === 'bot') {
+						targetUser = client.user;
+					} else if (firstArg === 'server') {
+						targetGuild = message.guild;
+						if (!targetGuild.banner) {
+							return messages.error(message.channel, `${emojis.error} This server does not have a banner.`);
+						}
+						bannerURL = targetGuild.bannerURL({ dynamic: true, size: 4096 });
+						const embed = buildImageEmbed(
+							`${emojis.butterfly} ${targetGuild.name}'s banner`,
+							bannerURL,
+							message.author
+						);
+						return sendImageWithDMButton(message.channel, embed, message.author);
+					} else {
+						const mention = args[0].match(/^<@!?(\d+)>$/);
+						const userId = mention ? mention[1] : args[0];
+						try {
+							targetUser = await client.users.fetch(userId, { force: true });
+						} catch {
+							return messages.error(message.channel, `${emojis.error} Invalid user!`);
+						}
+					}
+				}
+				bannerURL = targetUser.bannerURL({ dynamic: true, size: 4096 });
+
+				if (!bannerURL) {
+					return messages.error(message.channel, `${emojis.error} ${targetUser.username} does not have a banner.`);
+				}
+
+				const embed = buildImageEmbed(
+					`${emojis.butterfly} ${targetUser.username}'s banner`,
+					bannerURL,
+					message.author
+				);
+				await sendImageWithDMButton(message.channel, embed, message.author);
 				break;
 			}
 			
