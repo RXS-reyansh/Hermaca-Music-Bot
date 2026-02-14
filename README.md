@@ -1,5 +1,12 @@
 <p align="center">
-  <img src="https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/cover.gif?raw=true" alt="Bot Demo GIF" style="border-radius: 20px; box-shadow: 0 8px 16px rgba(88, 101, 242, 0.3); border: 3px solid #5865F2;" width="800"/>
+  <img src="https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/cover.gif?raw=true" 
+       alt="Bot Demo GIF" 
+       style="border-radius: 20px; 
+              box-shadow: 0 8px 16px rgba(88, 101, 242, 0.3); 
+              border: 3px solid #5865F2;
+              width: 600px;  /* Smaller than 800px */
+              max-width: 100%; /* Responsive on mobile */
+              height: auto;    /* Maintain aspect ratio */" />
 </p>
 
 # Discord Music Bot
