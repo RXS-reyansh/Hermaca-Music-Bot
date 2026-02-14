@@ -43,7 +43,7 @@ const prefixCommands = [
     'avatar', 'av', 'banner', 'bn', 'purge', 'say', 'reveal', '24/7', 'doakes',
     'emma-heart', 'emma-heart1', 'emma-kiss', 'emma-hii', 'emma-worried',
     'emma-rawr', 'suscat', 'doakes-surprise', 'setavatar', 'setav', 'setbanner',
-    'setbn', 'setname', 'emma-heart-st', 'emma-heart-st1', 'noprefix'
+    'setbn', 'setname', 'emma-heart-st', 'emma-heart-st1', 'noprefix', 'nop'
 ];
 const validCommands = new Set(prefixCommands);
 
