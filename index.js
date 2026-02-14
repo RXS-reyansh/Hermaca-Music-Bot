@@ -3378,11 +3378,13 @@ client.on("messageCreate", async (message) => {
 						const mention = args[0].match(/^<@!?(\d+)>$/);
 						const userId = mention ? mention[1] : args[0];
 						try {
-							targetUser = await client.users.fetch(userId);
+							targetUser = await client.users.fetch(userId, { force: true });
 						} catch {
 							return messages.error(message.channel, `${emojis.error} Invalid user!`);
 						}
 					}
+				} else {
+					targetUser = await client.users.fetch(message.author.id, { force: true });
 				}
 				const member = message.guild.members.cache.get(targetUser.id);
 				const hasServerAvatar = member && member.avatar;
