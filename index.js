@@ -3365,7 +3365,7 @@ client.on("messageCreate", async (message) => {
 					} else if (firstArg === 'server') {
 						targetGuild = message.guild;
 						if (!targetGuild.icon) {
-							return messages.error(message.channel, `${emojis.error} This server does not have an icon.`);
+							return messages.error(message.channel, 'This server does not have an icon.');
 						}
 						const avatarURL = targetGuild.iconURL({ dynamic: true, size: 4096 });
 						const embed = buildImageEmbed(
@@ -3380,7 +3380,7 @@ client.on("messageCreate", async (message) => {
 						try {
 							targetUser = await client.users.fetch(userId, { force: true });
 						} catch {
-							return messages.error(message.channel, `${emojis.error} Invalid user!`);
+							return messages.error(message.channel, 'Invalid user!');
 						}
 					}
 				} else {
@@ -3455,19 +3455,21 @@ client.on("messageCreate", async (message) => {
 			case 'bn': {
 				let targetUser = message.author;
 				let targetGuild = null;
-				let bannerURL;
+				let hasServerBanner = false;
+				let member = null;
 
 				if (args.length > 0) {
 					const firstArg = args[0].toLowerCase();
 
 					if (firstArg === 'bot') {
+						await client.user.fetch();
 						targetUser = client.user;
 					} else if (firstArg === 'server') {
 						targetGuild = message.guild;
 						if (!targetGuild.banner) {
-							return messages.error(message.channel, `${emojis.error} This server does not have a banner.`);
+							return messages.error(message.channel, 'This server does not have a banner.');
 						}
-						bannerURL = targetGuild.bannerURL({ dynamic: true, size: 4096 });
+						const bannerURL = targetGuild.bannerURL({ dynamic: true, size: 4096 });
 						const embed = buildImageEmbed(
 							`${emojis.butterfly} ${targetGuild.name}'s banner`,
 							bannerURL,
@@ -3479,23 +3481,87 @@ client.on("messageCreate", async (message) => {
 						const userId = mention ? mention[1] : args[0];
 						try {
 							targetUser = await client.users.fetch(userId, { force: true });
+							member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
+							hasServerBanner = member && member.banner ? true : false;
 						} catch {
-							return messages.error(message.channel, `${emojis.error} Invalid user!`);
+							return messages.error(message.channel, 'Invalid user!');
 						}
 					}
+				} else {
+					targetUser = await client.users.fetch(message.author.id, { force: true });
+					member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
+					hasServerBanner = member && member.banner ? true : false;
 				}
-				bannerURL = targetUser.bannerURL({ dynamic: true, size: 4096 });
+				const hasGlobalBanner = targetUser.banner ? true : false;
+				const showBanner = async (type) => {
+					let bannerURL, title;
+					if (type === 'server' && member && member.banner) {
+						bannerURL = member.bannerURL({ dynamic: true, size: 4096 });
+						title = `${emojis.butterfly} ${targetUser.username}'s server banner`;
+					} else if (type === 'global' && targetUser.banner) {
+						bannerURL = targetUser.bannerURL({ dynamic: true, size: 4096 });
+						title = `${emojis.butterfly} ${targetUser.username}'s global banner`;
+					} else {
+						return messages.error(message.channel, 'That banner is no longer available.');
+					}
 
-				if (!bannerURL) {
-					return messages.error(message.channel, `${emojis.error} ${targetUser.username} does not have a banner.`);
+					const embed = buildImageEmbed(title, bannerURL, message.author);
+					await sendImageWithDMButton(message.channel, embed, message.author);
+				};
+				if (hasServerBanner && hasGlobalBanner) {
+					const promptEmbed = new EmbedBuilder()
+						.setColor(config.embedColor)
+						.setTitle(`${emojis.info} Choose Banner`)
+						.setDescription(`${targetUser.username} has both a server‑specific banner and a global banner. Which one would you like to see?`)
+						.setFooter({ text: 'You have 60 seconds to decide' });
+
+					const row = new ActionRowBuilder()
+						.addComponents(
+							new ButtonBuilder()
+								.setCustomId(`server_banner_${targetUser.id}`)
+								.setLabel('Server Banner')
+								.setStyle(ButtonStyle.Success),
+							new ButtonBuilder()
+								.setCustomId(`global_banner_${targetUser.id}`)
+								.setLabel('Global Banner')
+								.setStyle(ButtonStyle.Success)
+						);
+
+					const promptMsg = await message.channel.send({ embeds: [promptEmbed], components: [row] });
+
+					const filter = i => i.user.id === message.author.id;
+					const collector = promptMsg.createMessageComponentCollector({ filter, time: 60000 });
+
+					collector.on('collect', async i => {
+						await i.deferUpdate();
+						collector.stop();
+
+						if (i.customId.startsWith('server_banner')) {
+							await showBanner('server');
+						} else {
+							await showBanner('global');
+						}
+						await promptMsg.delete().catch(() => {});
+					});
+
+					collector.on('end', async (collected, reason) => {
+						if (reason === 'time') {
+							const disabledRow = ActionRowBuilder.from(row).setComponents(
+								row.components.map(c => ButtonBuilder.from(c).setDisabled(true))
+							);
+							await promptMsg.edit({ components: [disabledRow] }).catch(() => {});
+						}
+					});
 				}
-
-				const embed = buildImageEmbed(
-					`${emojis.butterfly} ${targetUser.username}'s banner`,
-					bannerURL,
-					message.author
-				);
-				await sendImageWithDMButton(message.channel, embed, message.author);
+				else if (hasServerBanner && !hasGlobalBanner) {
+					await showBanner('server');
+				}
+				else if (!hasServerBanner && hasGlobalBanner) {
+					await showBanner('global');
+				}
+				else {
+					return messages.error(message.channel, `${targetUser.username} does not have any banner.`);
+				}
 				break;
 			}
 			
