@@ -79,13 +79,14 @@ A feature-rich Discord music bot built with Discord.js, Riffy, and Lavalink. Thi
 ## .env file format
 
 ```
-DISCORD_TOKEN= 			// Token of BOT
-DISCORD_CLIENT_ID= 		// Client ID of BOT
-SPOTIFY_CLIENT_SECRET= 	// For Spotify Playback
-SPOTIFY_CLIENT_ID= 		// For Spotify Playback
-GENIUS_TOKEN= 			// For Lyrics
-MONGO_URI=				// MongoDB
-BOT_IDENTIFIER=			// For MongoDB Collection
+// Replace <...> with actual values!
+DISCORD_TOKEN= <Token_of_BOT>
+DISCORD_CLIENT_ID= <ClientID_of_BOT>
+SPOTIFY_CLIENT_SECRET= <Client_Secret for Spotify Playback>
+SPOTIFY_CLIENT_ID= <Client_ID for Spotify Playback>
+GENIUS_TOKEN= <Genius_TOKEN for Lyrics>
+MONGO_URI= <URI for MongoDB connection>
+BOT_IDENTIFIER= <random_indentifier For MongoDB collection(s) name>
 ```
 
 ## Support
