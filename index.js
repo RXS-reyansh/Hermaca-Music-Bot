@@ -23,7 +23,10 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    PermissionsBitField
+    PermissionsBitField,
+	AttachmentBuilder,
+	StringSelectMenuBuilder,
+	ComponentType
 } = require("discord.js");
 const { Riffy } = require("riffy");
 const { Spotify } = require("riffy-spotify");
@@ -33,12 +36,13 @@ const messages = require("./utils/messages.js");
 const emojis = require("./emojis.js");
 const stickers = require("./stickers.js");
 const db = require('./database.js');
+const { createQuoteImage } = require("./utils/quoteGenerator");
 /* const { recordSongPlay, getUserStats, getUserRank, getLeaderboard } = db; */
 const prefixCommands = [
     'play', 'p', 'pause', 'resume', 'skip', 'stop', 's', 'lyrics', 'queue', 'q',
     'nowplaying', 'np', 'volume', 'vol', 'servervolume', 'filter', 'shuffle',
     'loop', 'move', 'add', 'remove', 'clear', 'status', 'ping', 'help',
-    'setspotify', 'playspotify', 'join', 'leave', 'rejoin', 'song-quote',
+    'setspotify', 'playspotify', 'join', 'leave', 'rejoin', 'song-quote', 'quote',
     'mystats', 'leaderboard', 'resetstats', 'stats', 'afk', 'react', 'emoji',
     'avatar', 'av', 'banner', 'bn', 'purge', 'say', 'reveal', '24/7', 'doakes',
     'emma-heart', 'emma-heart1', 'emma-kiss', 'emma-hii', 'emma-worried',
@@ -72,7 +76,8 @@ async function getHostingServiceIP() {
 
         const hostingServices = {
             'Asterix': '89.106.84.76',
-            'Heaven': '23.153.72.157'
+            'Heaven': '23.153.72.157',
+            'RR': '51.222.38.113'
         };
         
         function getHostingName(ip) {
@@ -80,6 +85,7 @@ async function getHostingServiceIP() {
             const hosting = 
                 ip === hostingServices.Asterix ? 'Asterix' :
                 ip === hostingServices.Heaven ? 'Heaven' :
+            	ip === hostingServices.RR ? 'RR' :
                 'Unknown';
             
             return hosting;
@@ -278,6 +284,8 @@ const serversFile = path.join(__dirname, 'servers.json'); */
 client.original24SevenChannels = new Map();
 
 client.inactivityTimers = new Map();
+
+client.quoteOptions = new Map();
 
 client.emojis = emojis;
 client.stickers = stickers;
@@ -587,6 +595,18 @@ const slashCommands = [
 	new SlashCommandBuilder()
 		.setName('rejoin')
 		.setDescription('Make the bot leave and rejoin the current voice channel'),
+		
+	new SlashCommandBuilder()
+		.setName('quote')
+		.setDescription('Generate a quote image from a message')
+		.addStringOption(option =>
+			option.setName('message_id')
+				.setDescription('The ID of the message to quote')
+				.setRequired(true))
+		.addStringOption(option =>
+			option.setName('text')
+				.setDescription('Optional custom text to add')
+				.setRequired(false)),
 		
 	new SlashCommandBuilder()
         .setName('help')
@@ -1436,7 +1456,7 @@ client.on(Events.InteractionCreate, async interaction => {
 				try {
 					await interaction.editReply(`${emojis.loading} | Generating your song quote...`);
 
-					const { createSongQuoteImage } = require("./utils/imageGenerator");
+					const { createSongQuoteImage } = require("./utils/songQuoteGenerator");
 					const track = player.current;
 					const imageBuffer = await createSongQuoteImage(track, text);
 					const { AttachmentBuilder } = require('discord.js');
@@ -1532,6 +1552,12 @@ client.on(Events.InteractionCreate, async interaction => {
 				}
 				break;
 			}
+			
+			case 'quote': {
+				await handleQuote(interaction, true, {});
+				break;
+			}
+			
             case 'mystats': {
                 try {
                     const userStats = await db.getUserStats(interaction.user.id);
@@ -2760,7 +2786,7 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
     }
 
     try {
-        const { createSongQuoteImage } = require("./utils/imageGenerator");
+        const { createSongQuoteImage } = require("./utils/songQuoteGenerator");
         const track = player.current;
 
         let loadingMessage;
@@ -2798,18 +2824,17 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
             sentMessage = await context.channel.send({ embeds: [embed], files: [attachment] });
         }
 
-        // --- ROBUST ATTACHMENT URL RETRIEVAL (with embed fallback) ---
         const getAttachmentUrlWithRetry = async (msg, maxRetries = 10, delayMs = 1000) => {
             for (let attempt = 1; attempt <= maxRetries; attempt++) {
-                // Check attachments first
+
                 if (msg.attachments && msg.attachments.size > 0) {
                     return msg.attachments.first().url;
                 }
-                // If no attachments, check embed image URL
+
                 if (msg.embeds && msg.embeds.length > 0 && msg.embeds[0].image && msg.embeds[0].image.url) {
                     return msg.embeds[0].image.url;
                 }
-                // Wait and try to fetch the message again
+
                 await new Promise(resolve => setTimeout(resolve, delayMs));
                 try {
                     if (isInteraction) {
@@ -2825,12 +2850,11 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
         };
 
         const attachmentUrl = await getAttachmentUrlWithRetry(sentMessage);
-        // --- END OF RETRY LOGIC ---
+
 
         const userId = isInteraction ? context.user.id : context.author.id;
         const userTag = isInteraction ? context.user.tag : context.author.tag;
 
-        // Create button row
         const row = new ActionRowBuilder()
             .addComponents(
                 new ButtonBuilder()
@@ -2843,14 +2867,12 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
                     .setStyle(ButtonStyle.Secondary)
             );
 
-        // Add buttons to the message
         if (isInteraction) {
             await context.editReply({ components: [row] });
         } else {
             await sentMessage.edit({ components: [row] });
         }
 
-        // Collector for the DM button
         const filter = i => i.customId === `song_quote_dm_${userId}` && i.user.id === userId;
         const collector = sentMessage.createMessageComponentCollector({ filter, time: 60000 });
 
@@ -2875,7 +2897,7 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
         });
 
         collector.on('end', async () => {
-            // Disable only the DM button
+
             const disabledRow = new ActionRowBuilder().addComponents(
                 ButtonBuilder.from(row.components[0]),
                 ButtonBuilder.from(row.components[1]).setDisabled(true)
@@ -2897,6 +2919,424 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
         await sendResponse(context, `${emojis.error} | Failed to generate song quote: ${error.message}`, isInteraction);
     }
 }
+async function handleQuote(context, isInteraction = false, initialOptions = {}) {
+    try {
+        let quotedMessage, customText, user, channel, guild, member;
+
+        const defaultOptions = {
+            theme: 'light',
+            avatarColor: true,
+            avatarPosition: 'left',
+            boldText: false,
+            layout: 'layout1',
+            fontFamily: 'Poppins',
+            customText: '',
+            confirmed: false,
+            cancelled: false
+        };
+
+        let currentOptions = { ...defaultOptions, ...initialOptions };
+
+        if (isInteraction) {
+            guild = context.guild;
+            channel = context.channel;
+            user = context.user;
+            member = context.member;
+            const messageId = context.options.getString('message_id');
+            customText = context.options.getString('text') || null;
+            if (!messageId) {
+                return await sendResponse(context, `${emojis.error} | Please provide a message ID to quote!`, isInteraction);
+            }
+            try {
+                quotedMessage = await channel.messages.fetch(messageId);
+            } catch (error) {
+                return await sendResponse(context, `${emojis.error} | Could not fetch that message!`, isInteraction);
+            }
+        } else {
+            guild = context.guild;
+            channel = context.channel;
+            user = context.author;
+            member = context.member;
+            if (!context.reference) {
+                return await sendResponse(context, `${emojis.error} | You must reply to a message to quote it!`, isInteraction);
+            }
+            try {
+                quotedMessage = await channel.messages.fetch(context.reference.messageId);
+            } catch (error) {
+                return await sendResponse(context, `${emojis.error} | Could not fetch the replied message!`, isInteraction);
+            }
+            customText = context.content.slice(context.content.indexOf(' ') + 1).trim() || null;
+            if (customText === context.content) customText = null;
+        }
+
+        if (!quotedMessage.content && quotedMessage.attachments.size === 0) {
+            return await sendResponse(context, `${emojis.error} | That message has no text or attachments to quote!`, isInteraction);
+        }
+
+        if (customText) currentOptions.customText = customText;
+
+        const loadingMsg = isInteraction 
+            ? await context.editReply({ content: `${emojis.loading} | Generating quote image...` })
+            : await context.channel.send(`${emojis.loading} | Generating quote image...`);
+
+        const { createQuoteImage } = require("./utils/quoteGenerator");
+        const imageBuffer = await createQuoteImage(quotedMessage, currentOptions);
+        const { AttachmentBuilder } = require('discord.js');
+        const attachment = new AttachmentBuilder(imageBuffer, { name: 'quote.png' });
+
+        const embed = new EmbedBuilder()
+            .setColor(config.embedColor)
+            .setTitle(`${emojis.blackbutterfly} Quote Generated`)
+            .setDescription(`Quoting **${quotedMessage.author.tag}**`)
+            .setImage('attachment://quote.png')
+            .setFooter({
+                text: `Requested by ${user.tag}`,
+                iconURL: user.displayAvatarURL()
+            })
+            .setTimestamp();
+
+        let sentMsg;
+        if (isInteraction) {
+            await context.editReply({ content: null, embeds: [embed], files: [attachment] });
+            sentMsg = await context.fetchReply();
+        } else {
+            await loadingMsg.delete().catch(() => {});
+            sentMsg = await context.channel.send({ embeds: [embed], files: [attachment] });
+        }
+
+        let attachmentUrl = sentMsg.attachments.first()?.url;
+
+        const buildRows = (options) => {
+            if (options.cancelled) return [];
+
+            const rows = [];
+
+            if (!options.confirmed) {
+
+                rows.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('quote_theme_light')
+                        .setLabel('☀️ Light')
+                        .setStyle(options.theme === 'light' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                    new ButtonBuilder()
+                        .setCustomId('quote_theme_dark')
+                        .setLabel('🌙 Dark')
+                        .setStyle(options.theme === 'dark' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+                ));
+
+                rows.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('quote_layout_layout1')
+                        .setLabel('📐 Layout 1')
+                        .setStyle(options.layout === 'layout1' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                    new ButtonBuilder()
+                        .setCustomId('quote_layout_layout2')
+                        .setLabel('📏 Layout 2')
+                        .setStyle(options.layout === 'layout2' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+                ));
+
+                const colorEmoji = emojis.colorToggle || emojis.colorToggleFallback || '🎨';
+                const boldEmoji = emojis.boldToggle || emojis.boldToggleFallback || '✍️';
+                const positionEmoji = emojis.positionToggle || emojis.positionToggleFallback || '↔️';
+
+                rows.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('quote_toggle_color')
+                        .setEmoji(colorEmoji)
+                        .setStyle(options.avatarColor ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                    new ButtonBuilder()
+                        .setCustomId('quote_toggle_bold')
+                        .setEmoji(boldEmoji)
+                        .setStyle(options.boldText ? ButtonStyle.Primary : ButtonStyle.Secondary),
+                    new ButtonBuilder()
+                        .setCustomId('quote_toggle_position')
+                        .setEmoji(positionEmoji)
+                        .setStyle(options.avatarPosition === 'right' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+                ));
+
+                const fontSelect = new StringSelectMenuBuilder()
+                    .setCustomId('quote_font_select')
+                    .setPlaceholder('Choose a font')
+                    .addOptions([
+                        { label: 'Poppins', value: 'Poppins', default: options.fontFamily === 'Poppins' },
+                        { label: 'Roboto', value: 'Roboto', default: options.fontFamily === 'Roboto' },
+                        { label: 'Open Sans', value: 'Open Sans', default: options.fontFamily === 'Open Sans' },
+                        { label: 'Georgia', value: 'Georgia', default: options.fontFamily === 'Georgia' }
+                    ]);
+                rows.push(new ActionRowBuilder().addComponents(fontSelect));
+
+                const confirmEmoji = emojis.confirm || emojis.confirmFallback || '✅';
+                const cancelEmoji = emojis.cancel || emojis.cancelFallback || '❌';
+                rows.push(new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('quote_confirm')
+                        .setEmoji(confirmEmoji)
+                        .setLabel('Confirm')
+                        .setStyle(ButtonStyle.Success),
+                    new ButtonBuilder()
+                        .setCustomId('quote_cancel')
+                        .setEmoji(cancelEmoji)
+                        .setLabel('Cancel')
+                        .setStyle(ButtonStyle.Danger)
+                ));
+            } else {
+
+                const downloadButton = new ButtonBuilder()
+                    .setLabel('Download')
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(attachmentUrl || 'https://discord.com');
+                if (!attachmentUrl) downloadButton.setDisabled(true);
+
+                const dmButton = new ButtonBuilder()
+                    .setCustomId(`quote_dm_${user.id}`)
+                    .setLabel('Send in DM')
+                    .setStyle(ButtonStyle.Secondary);
+
+                rows.push(new ActionRowBuilder().addComponents(downloadButton, dmButton));
+            }
+
+            return rows;
+        };
+
+		const rows = buildQuoteRows(currentOptions, attachmentUrl, user.id);
+        if (isInteraction) {
+            await context.editReply({ components: rows });
+        } else {
+            await sentMsg.edit({ components: rows });
+        }
+
+        client.quoteOptions.set(sentMsg.id, currentOptions);
+
+        const filter = i => i.customId.startsWith('quote_') && i.user.id === user.id;
+        const collector = sentMsg.createMessageComponentCollector({ filter, time: 24 * 60 * 60 * 1000 });
+
+        collector.on('collect', async i => {
+
+            currentOptions = client.quoteOptions.get(sentMsg.id) || currentOptions;
+
+            if (currentOptions.cancelled) {
+                await i.reply({ content: 'This quote has been cancelled.', ephemeral: true });
+                return;
+            }
+
+            if (i.customId === 'quote_confirm') {
+				currentOptions.confirmed = true;
+				client.quoteOptions.set(sentMsg.id, currentOptions);
+				const newRows = buildQuoteRows(currentOptions, attachmentUrl, user.id);
+				await i.update({ components: newRows });
+				return;
+			}
+
+            if (i.customId === 'quote_cancel') {
+                currentOptions.cancelled = true;
+                client.quoteOptions.set(sentMsg.id, currentOptions);
+
+                const cancelEmbed = new EmbedBuilder()
+                    .setColor(0xff5555)
+                    .setDescription(`${emojis.error} | Cancelled by the user!`)
+                    .setFooter({
+                        text: `Requested by ${user.tag}`,
+                        iconURL: user.displayAvatarURL()
+                    })
+                    .setTimestamp();
+
+                await i.update({ embeds: [cancelEmbed], files: [], components: [] });
+
+                collector.stop();
+                return;
+            }
+
+            if (i.customId === `quote_dm_${user.id}`) {
+                try {
+                    const dmEmbed = new EmbedBuilder()
+                        .setColor(config.embedColor)
+                        .setTitle(`${emojis.blackbutterfly} Quote Generated`)
+                        .setDescription(`Quoting **${quotedMessage.author.tag}**`)
+                        .setImage(attachmentUrl)
+                        .setFooter({ text: `Requested by ${i.user.tag}` })
+                        .setTimestamp();
+                    await i.user.send({ embeds: [dmEmbed] });
+                    await i.reply({ content: `${emojis.success} Image sent to your DMs!`, ephemeral: true });
+                } catch (error) {
+                    await i.reply({ content: `${emojis.error} Could not send DM.`, ephemeral: true });
+                }
+                return;
+            }
+
+            if (currentOptions.confirmed) {
+                await i.reply({ content: 'Quote already confirmed. You can only download or send to DM.', ephemeral: true });
+                return;
+            }
+
+            if (i.customId === 'quote_font_select' && i.isStringSelectMenu()) {
+				currentOptions.fontFamily = i.values[0];
+				client.quoteOptions.set(sentMsg.id, currentOptions);
+				await i.deferUpdate();
+				try {
+					const newUrl = await regenerateQuote(i, sentMsg, quotedMessage, currentOptions, attachmentUrl);
+					attachmentUrl = newUrl;
+				} catch (e) {
+					console.error('Failed to regenerate after font change:', e);
+				}
+				return;
+			}
+
+            await i.deferUpdate();
+
+            switch (i.customId) {
+				case 'quote_toggle_theme':
+					currentOptions.theme = currentOptions.theme === 'light' ? 'dark' : 'light';
+					break;
+				case 'quote_toggle_layout':
+					currentOptions.layout = currentOptions.layout === 'layout1' ? 'layout2' : 'layout1';
+					break;
+                case 'quote_toggle_bold':
+					currentOptions.boldText = !currentOptions.boldText;
+					break;
+				case 'quote_toggle_color':
+					currentOptions.avatarColor = !currentOptions.avatarColor;
+					break;
+				case 'quote_toggle_position':
+					currentOptions.avatarPosition = currentOptions.avatarPosition === 'left' ? 'right' : 'left';
+					break;
+                default:
+                    return;
+            }
+
+			client.quoteOptions.set(sentMsg.id, currentOptions);
+			try {
+				const newUrl = await regenerateQuote(i, sentMsg, quotedMessage, currentOptions, attachmentUrl);
+				attachmentUrl = newUrl;
+			} catch (e) {
+				console.error('Failed to regenerate after toggle:', e);
+			}
+        });
+
+        collector.on('end', () => {
+            client.quoteOptions.delete(sentMsg.id);
+        });
+
+    } catch (error) {
+        console.error('Quote generation error:', error);
+        await sendResponse(context, `${emojis.error} | Failed to generate quote: ${error.message}`, isInteraction);
+    }
+}
+
+function buildQuoteRows(options, attachmentUrl, userId) {
+    if (options.cancelled) return [];
+
+    if (!options.confirmed) {
+        const rows = [];
+
+        const themeEmoji = emojis.whitebutterfly || '✨';
+        const layoutEmoji = emojis.greenbutterfly || '📐';
+        const boldEmoji = emojis.orangebutterfly || '🅱️';
+
+        rows.push(new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('quote_toggle_theme')
+                .setEmoji(themeEmoji)
+                .setLabel('Theme')
+                .setStyle(options.theme === 'dark' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('quote_toggle_layout')
+                .setEmoji(layoutEmoji)
+                .setLabel('Layouts')
+                .setStyle(options.layout === 'layout2' ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('quote_toggle_bold')
+                .setEmoji(boldEmoji)
+                .setLabel('Bold Text')
+                .setStyle(options.boldText ? ButtonStyle.Primary : ButtonStyle.Secondary)
+        ));
+
+        const colorEmoji = emojis.purplebutterfly || '🎨';
+        const positionEmoji = emojis.bluebutterfly || '↔️';
+
+        rows.push(new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('quote_toggle_color')
+                .setEmoji(colorEmoji)
+                .setLabel('Avatar Color')
+                .setStyle(options.avatarColor ? ButtonStyle.Primary : ButtonStyle.Secondary),
+            new ButtonBuilder()
+                .setCustomId('quote_toggle_position')
+                .setEmoji(positionEmoji)
+                .setLabel('Avatar Placement')
+                .setStyle(options.avatarPosition === 'right' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+        ));
+
+        const fontSelect = new StringSelectMenuBuilder()
+            .setCustomId('quote_font_select')
+            .setPlaceholder('Choose a font')
+            .addOptions([
+                { label: 'Poppins', value: 'Poppins', default: options.fontFamily === 'Poppins' },
+                { label: 'Roboto', value: 'Roboto', default: options.fontFamily === 'Roboto' },
+                { label: 'Open Sans', value: 'Open Sans', default: options.fontFamily === 'Open Sans' },
+                { label: 'Georgia', value: 'Georgia', default: options.fontFamily === 'Georgia' }
+            ]);
+        rows.push(new ActionRowBuilder().addComponents(fontSelect));
+
+        const confirmEmoji = emojis.success || '✅';
+        const cancelEmoji = emojis.error || '❌';
+        rows.push(new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('quote_confirm')
+                .setEmoji(confirmEmoji)
+                .setLabel('Confirm')
+                .setStyle(ButtonStyle.Success),
+            new ButtonBuilder()
+                .setCustomId('quote_cancel')
+                .setEmoji(cancelEmoji)
+                .setLabel('Cancel')
+                .setStyle(ButtonStyle.Danger)
+        ));
+
+        return rows;
+    } else {
+
+        const downloadButton = new ButtonBuilder()
+            .setLabel('Download')
+            .setStyle(ButtonStyle.Link)
+            .setURL(attachmentUrl || 'https://discord.com');
+        if (!attachmentUrl) downloadButton.setDisabled(true);
+
+        const dmButton = new ButtonBuilder()
+            .setCustomId(`quote_dm_${userId}`)
+            .setLabel('Send in DM')
+            .setStyle(ButtonStyle.Secondary);
+
+        return [new ActionRowBuilder().addComponents(downloadButton, dmButton)];
+    }
+}
+
+async function regenerateQuote(interaction, sentMsg, quotedMessage, options, oldAttachmentUrl) {
+    try {
+        const { createQuoteImage } = require("./utils/quoteGenerator");
+        const newImageBuffer = await createQuoteImage(quotedMessage, options);
+        const { AttachmentBuilder } = require('discord.js');
+        const newAttachment = new AttachmentBuilder(newImageBuffer, { name: 'quote.png' });
+
+        const newEmbed = EmbedBuilder.from(sentMsg.embeds[0]).setImage('attachment://quote.png');
+
+        await sentMsg.edit({ embeds: [newEmbed], files: [newAttachment] });
+
+        const updatedMsg = await sentMsg.fetch();
+        const newAttachmentUrl = updatedMsg.attachments.first()?.url;
+
+        const finalUrl = newAttachmentUrl || oldAttachmentUrl;
+
+        const newRows = buildQuoteRows(options, finalUrl, interaction.user.id);
+
+        await sentMsg.edit({ components: newRows });
+
+        return finalUrl;
+    } catch (error) {
+        console.error('Regeneration error:', error);
+        throw error;
+    }
+}
+
 async function handleHelp(context, isInteraction = false) {
     const channel = isInteraction ? context.channel : context.channel;
     const commands = [
@@ -4030,14 +4470,16 @@ async function handlePrefixCommand(message, cmd, args) {
 			
 			case 'say': {
 				const rawText = message.content.slice(client.prefix.length + cmd.length).replace(/^\s+/, '');
-				if (!rawText) {
-					return message.reply(`${emojis.error} | You need to provide something to say!`)
+				if (!rawText && message.attachments.size === 0) {
+					return message.reply(`${emojis.error} | You need to provide something to say or attach a file!`)
 						.catch(() => {});
 				}
+
 				let processed = rawText
 					.replace(/\\\\n/g, '\u0000')
 					.replace(/\\n/g, '\n')
 					.replace(/\u0000/g, '\\n');
+
 				const emojiRegex = /-emoji-(\S+)/g;
 				const identifiers = new Set();
 				let match;
@@ -4057,16 +4499,31 @@ async function handlePrefixCommand(message, cmd, args) {
 						return replacement !== null ? replacement : match;
 					});
 				}
+
+				let files = [];
+				if (message.attachments.size > 0) {
+					files = await Promise.all(
+						message.attachments.map(async (attachment) => {
+							const response = await fetch(attachment.url);
+							const buffer = Buffer.from(await response.arrayBuffer());
+							return new AttachmentBuilder(buffer, { name: attachment.name });
+						})
+					);
+				}
+
 				await message.delete().catch(() => {});
+
+				const sendOptions = { content: processed || null, files: files.length > 0 ? files : undefined };
+
 				if (message.reference) {
 					try {
 						const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
-						await repliedMessage.reply(processed);
+						await repliedMessage.reply(sendOptions);
 					} catch {
-						await message.channel.send(processed);
+						await message.channel.send(sendOptions);
 					}
 				} else {
-					await message.channel.send(processed);
+					await message.channel.send(sendOptions);
 				}
 				break;
 			}
@@ -4332,6 +4789,10 @@ async function handlePrefixCommand(message, cmd, args) {
 				break;
 			}
 			
+			case 'quote': {
+				await handleQuote(message, false, {});
+				break;
+			}		
 			case 'mystats': {
 				try {
 					const userStats = await db.getUserStats(message.author.id);
@@ -4516,6 +4977,21 @@ async function handlePrefixCommand(message, cmd, args) {
 				if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
 					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
 				}
+				if (args[0] && args[0].toLowerCase() === 'reset') {
+					const loadingMsg = await message.channel.send(`${emojis.loading} | Resetting server avatar...`);
+					try {
+						await rest.patch(Routes.guildMember(message.guild.id, '@me'), {
+							body: { avatar: null }
+						});
+						await message.channel.send(`${emojis.success} | Server avatar reset to global avatar!`);
+						setTimeout(() => loadingMsg.delete().catch(() => {}), 3000);
+					} catch (error) {
+						console.error('Reset avatar error:', error);
+						await loadingMsg.delete().catch(() => {});
+						await message.channel.send(`${emojis.error} | Failed to reset avatar: ${error.message}`);
+					}
+					return;
+				}
 
 				let imageUrl = null;
 				if (message.attachments.size > 0) {
@@ -4556,6 +5032,21 @@ async function handlePrefixCommand(message, cmd, args) {
 			case 'setbn': {
 				if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
 					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
+				}
+				if (args[0] && args[0].toLowerCase() === 'reset') {
+					const loadingMsg = await message.channel.send(`${emojis.loading} | Resetting server banner...`);
+					try {
+						await rest.patch(Routes.guildMember(message.guild.id, '@me'), {
+							body: { banner: null }
+						});
+						await message.channel.send(`${emojis.success} | Server banner reset to global banner!`);
+						setTimeout(() => loadingMsg.delete().catch(() => {}), 3000);
+					} catch (error) {
+						console.error('Reset banner error:', error);
+						await loadingMsg.delete().catch(() => {});
+						await message.channel.send(`${emojis.error} | Failed to reset banner: ${error.message}`);
+					}
+					return;
 				}
 
 				let imageUrl = null;
@@ -4598,6 +5089,21 @@ async function handlePrefixCommand(message, cmd, args) {
 			case 'setname': {
 				if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
 					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
+				}
+				if (args[0] && args[0].toLowerCase() === 'reset') {
+					const loadingMsg = await message.channel.send(`${emojis.loading} | Resetting nickname...`);
+					try {
+						await rest.patch(Routes.guildMember(message.guild.id, '@me'), {
+							body: { nick: null }
+						});
+						await message.channel.send(`${emojis.success} | Nickname reset to global username!`);
+						setTimeout(() => loadingMsg.delete().catch(() => {}), 3000);
+					} catch (error) {
+						console.error('Reset nickname error:', error);
+						await loadingMsg.delete().catch(() => {});
+						await message.channel.send(`${emojis.error} | Failed to reset nickname: ${error.message}`);
+					}
+					return;
 				}
 
 				const newNick = args.join(' ').trim();
@@ -4903,63 +5409,76 @@ const sendImageWithDMButton = async (channel, embed, requester) => {
 
 client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
-    const hasNoPrefix = (message.author.id === ownerId) || await db.isNoPrefixUser(message.author.id);
-    if (hasNoPrefix && !message.content.startsWith(client.prefix)) {
-        const args = message.content.trim().split(/ +/);
-        const cmdName = args.shift().toLowerCase();
-        if (validCommands.has(cmdName)) {
-            await handlePrefixCommand(message, cmdName, args);
-            return;
-        }
-    }
-    if (!message.content.startsWith(client.prefix)) {
+
+    const mentionedUsers = message.mentions.users.filter(u => !u.bot);
+    for (const [userId, user] of mentionedUsers) {
         try {
-            const authorAfk = await db.getAFK(message.author.id);
-            if (authorAfk) {
-                await db.removeAFK(message.author.id);
-                const welcomeEmbed = new EmbedBuilder()
-                    .setColor(config.embedColor)
-                    .setDescription(`${emojis.success} Welcome back! Your AFK status has been removed.`)
-                    .setTimestamp();
-                await message.channel.send({ embeds: [welcomeEmbed] }).catch(() => {});
+            const afkData = await db.getAFK(userId);
+            if (afkData) {
+                await sendAfkEmbed(message, user, afkData);
             }
         } catch (afkError) {
-            console.error('Error removing AFK status:', afkError);
+            console.error('Error fetching mentioned AFK:', afkError);
         }
-        
-        const mentionedUsers = message.mentions.users.filter(u => !u.bot);
-        for (const [userId, user] of mentionedUsers) {
-            try {
-                const afkData = await db.getAFK(userId);
-                if (afkData) {
-                    await sendAfkEmbed(message, user, afkData);
-                }
-            } catch (afkError) {
-                console.error('Error fetching mentioned AFK:', afkError);
-            }
-        }
-        return;
     }
-    const args = message.content.slice(client.prefix.length).trim().split(/ +/);
-    const command = args.shift().toLowerCase();
-    
-    const voiceCommands = ['play', 'p', 'playspotify', 'pause', 'resume', 'skip', 'stop', 
-                         'queue', 'q', 'nowplaying', 'np', 'volume', 'vol', 'servervolume', 
-                         'shuffle', 'loop', 'remove', 'clear', 'status', 'filter', 'move', 'add'];
-    
-    if (voiceCommands.includes(command)) {
-        if (!message.member.voice.channel) {
-            return message.reply({ 
+
+    if (message.content.startsWith(client.prefix)) {
+        const args = message.content.slice(client.prefix.length).trim().split(/ +/);
+        const command = args.shift().toLowerCase();
+
+        const voiceCommands = ['play', 'p', 'playspotify', 'pause', 'resume', 'skip', 'stop',
+                               'queue', 'q', 'nowplaying', 'np', 'volume', 'vol', 'servervolume',
+                               'shuffle', 'loop', 'remove', 'clear', 'status', 'filter', 'move', 'add'];
+        if (voiceCommands.includes(command) && !message.member.voice.channel) {
+            return message.reply({
                 content: `${emojis.error} | You must be in a voice channel!`,
                 flags: MessageFlags.Ephemeral
             });
         }
+
+        try {
+            await handlePrefixCommand(message, command, args);
+        } catch (error) {
+            message.reply(`${emojis.error} | An error occurred while processing your command!`);
+        }
+        return;
     }
-    
-    try {      
-        await handlePrefixCommand(message, command, args);     
-    } catch (error) {
-        message.reply(`${emojis.error} | An error occurred while processing your command!`);
+
+    const hasNoPrefix = (message.author.id === ownerId) || await db.isNoPrefixUser(message.author.id);
+
+    if (hasNoPrefix) {
+        const args = message.content.trim().split(/ +/);
+        const cmdName = args.shift().toLowerCase();
+
+        if (validCommands.has(cmdName)) {
+
+            const voiceCommands = ['play', 'p', 'playspotify', 'pause', 'resume', 'skip', 'stop',
+                                   'queue', 'q', 'nowplaying', 'np', 'volume', 'vol', 'servervolume',
+                                   'shuffle', 'loop', 'remove', 'clear', 'status', 'filter', 'move', 'add'];
+            if (voiceCommands.includes(cmdName) && !message.member.voice.channel) {
+                await message.reply({
+                    content: `${emojis.error} | You must be in a voice channel!`,
+                    flags: MessageFlags.Ephemeral
+                });
+
+            } else {
+                await handlePrefixCommand(message, cmdName, args);
+            }
+        }
+    }
+
+    try {
+        const authorAfk = await db.getAFK(message.author.id);
+        if (authorAfk) {
+            await db.removeAFK(message.author.id);
+            const welcomeEmbed = new EmbedBuilder()
+                .setColor(config.embedColor)
+                .setDescription(`${emojis.success} Welcome back! Your AFK status has been removed.`)
+                .setTimestamp();
+            await message.channel.send({ embeds: [welcomeEmbed] }).catch(() => {});
+        }
+    } catch (afkError) {
+        console.error('Error removing AFK status:', afkError);
     }
 });
 client.riffy.on("nodeError", (node, error) => {
