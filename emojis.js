@@ -1,6 +1,8 @@
 module.exports = {
     success: "<a:black_tick:1471741240612487219>",
+	greentick: "a:greentick:1473316237093376060>",
     error: "<a:cross:1471741638203408454>",
+	calculus: "<:calculus:1473326503931412540> ",
     music: "<a:blackstar:1457639037803434037>",
     info: "<a:info:1471741510100713543>",
     time: "<:time:1350022772067274783>",

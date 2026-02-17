@@ -340,7 +340,6 @@ class Database {
 			
 		} catch (error) {
 			console.error("❌ Cluster ID error:", error);
-
 			return 1;
 		}
 	}
@@ -651,6 +650,170 @@ class Database {
 			console.error('Error checking noprefix user:', error);
 			return false;
 		}
+	}
+
+	async getNoprefixGlobalEnabled() {
+		try {
+			await this.connect();
+			const collection = this.getPrefixedCollection('settings');
+			const doc = await collection.findOne({ _id: 'noprefix_global' });
+			if (!doc) {
+
+				await collection.insertOne({ _id: 'noprefix_global', enabled: true });
+				return true;
+			}
+			return doc.enabled;
+		} catch (error) {
+			console.error('Error getting noprefix global enabled:', error);
+			return true;
+		}
+	}
+
+	async setNoprefixGlobalEnabled(enabled) {
+		try {
+			await this.connect();
+			const collection = this.getPrefixedCollection('settings');
+			await collection.updateOne(
+				{ _id: 'noprefix_global' },
+				{ $set: { enabled } },
+				{ upsert: true }
+			);
+			return true;
+		} catch (error) {
+			console.error('Error setting noprefix global enabled:', error);
+			return false;
+		}
+	}
+	
+	async getCountingConfig(guildId) {
+	  try {
+		await this.connect();
+		const collection = this.getPrefixedCollection('counting');
+		return await collection.findOne({ guild_id: guildId });
+	  } catch (error) {
+		console.error('Error getting counting config:', error);
+		return null;
+	  }
+	}
+
+	async setCountingChannel(guildId, channelId) {
+	  try {
+		await this.connect();
+		const collection = this.getPrefixedCollection('counting');
+		await collection.updateOne(
+		  { guild_id: guildId },
+		  {
+			$set: {
+			  channel_id: channelId,
+			  enabled: true,
+			  updated_at: new Date()
+			},
+			$setOnInsert: {
+			  current_number: 0,
+			  last_user_id: null,
+			  toggle_reset: false   // renamed
+			}
+		  },
+		  { upsert: true }
+		);
+		return true;
+	  } catch (error) {
+		console.error('Error setting counting channel:', error);
+		return false;
+	  }
+	}
+
+	async disableCounting(guildId) {
+	  try {
+		await this.connect();
+		const collection = this.getPrefixedCollection('counting');
+		await collection.updateOne(
+		  { guild_id: guildId },
+		  { $set: { enabled: false, updated_at: new Date() } }
+		);
+		return true;
+	  } catch (error) {
+		console.error('Error disabling counting:', error);
+		return false;
+	  }
+	}
+
+	async setCountingToggleReset(guildId, enabled) {   // renamed
+	  try {
+		await this.connect();
+		const collection = this.getPrefixedCollection('counting');
+		await collection.updateOne(
+		  { guild_id: guildId },
+		  { $set: { toggle_reset: enabled, updated_at: new Date() } }
+		);
+		return true;
+	  } catch (error) {
+		console.error('Error setting toggle-reset:', error);
+		return false;
+	  }
+	}
+
+	async setCountingStart(guildId, startNumber) {
+	  try {
+		await this.connect();
+		const collection = this.getPrefixedCollection('counting');
+		await collection.updateOne(
+		  { guild_id: guildId },
+		  {
+			$set: {
+			  current_number: startNumber,
+			  last_user_id: null,
+			  updated_at: new Date()
+			}
+		  }
+		);
+		return true;
+	  } catch (error) {
+		console.error('Error setting counting start:', error);
+		return false;
+	  }
+	}
+
+	async updateCountingAfterCorrect(guildId, newNumber, userId) {
+	  try {
+		await this.connect();
+		const collection = this.getPrefixedCollection('counting');
+		await collection.updateOne(
+		  { guild_id: guildId },
+		  {
+			$set: {
+			  current_number: newNumber,
+			  last_user_id: userId,
+			  updated_at: new Date()
+			}
+		  }
+		);
+		return true;
+	  } catch (error) {
+		console.error('Error updating counting:', error);
+		return false;
+	  }
+	}
+
+	async resetCounting(guildId) {
+	  try {
+		await this.connect();
+		const collection = this.getPrefixedCollection('counting');
+		await collection.updateOne(
+		  { guild_id: guildId },
+		  {
+			$set: {
+			  current_number: 0,
+			  last_user_id: null,
+			  updated_at: new Date()
+			}
+		  }
+		);
+		return true;
+	  } catch (error) {
+		console.error('Error resetting counting:', error);
+		return false;
+	  }
 	}
 }
 

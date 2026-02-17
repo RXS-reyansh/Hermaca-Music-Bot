@@ -47,7 +47,7 @@ const prefixCommands = [
     'avatar', 'av', 'banner', 'bn', 'purge', 'say', 'reveal', '24/7', 'doakes',
     'emma-heart', 'emma-heart1', 'emma-kiss', 'emma-hii', 'emma-worried',
     'emma-rawr', 'suscat', 'doakes-surprise', 'setavatar', 'setav', 'setbanner',
-    'setbn', 'setname', 'emma-heart-st', 'emma-heart-st1', 'noprefix', 'nop'
+    'setbn', 'setname', 'emma-heart-st', 'emma-heart-st1', 'noprefix', 'nop', 'count'
 ];
 const validCommands = new Set(prefixCommands);
 
@@ -77,15 +77,17 @@ async function getHostingServiceIP() {
         const hostingServices = {
             'Asterix': '89.106.84.76',
             'Heaven': '23.153.72.157',
-            'RR': '51.222.38.113'
+            'RR': '51.222.38.113',
+			'Wispbyte': '212.227.65.132'
         };
         
         function getHostingName(ip) {
 
             const hosting = 
-                ip === hostingServices.Asterix ? 'Asterix' :
-                ip === hostingServices.Heaven ? 'Heaven' :
-            	ip === hostingServices.RR ? 'RR' :
+                ip === hostingServices.Asterix ? 'Asterix Hosting' :
+                ip === hostingServices.Heaven ? 'Heaven Hosting' :
+            	ip === hostingServices.RR ? 'RRHosting' :
+				ip === hostingServices.Wispbyte ? 'Wispbyte' :
                 'Unknown';
             
             return hosting;
@@ -116,7 +118,7 @@ async function getHostingServiceIP() {
                         
                         if (ip && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
                             const hosting = getHostingName(ip);
-                            console.log(`🌐🌐🌐 ${hosting} HOSTING IP ADDRESS: ${ip}/32 (mask /32) 🌐🌐🌐`);
+                            console.log(`🌐🌐🌐 ${hosting} IP ADDRESS: ${ip}/32 (mask /32) 🌐🌐🌐`);
                             resolve({ ip, hosting });
                         } else {
                             tryNextService();
@@ -805,6 +807,9 @@ client.once("ready", async () => {
 			client.db = db;
         }
 
+		client.noprefixGlobalEnabled = await db.getNoprefixGlobalEnabled();
+		console.log(`🌐 Global noprefix is ${client.noprefixGlobalEnabled ? 'ENABLED' : 'DISABLED'}`);
+
         const clusterId = await db.getOrCreateClusterId();
         client.clusterId = String(clusterId);
         console.log(`🪐 Cluster ID: ${client.clusterId}`);
@@ -1331,7 +1336,7 @@ client.on(Events.InteractionCreate, async interaction => {
                             inline: false
                         }
                     )
-                    .setFooter({ text: `Database on MongoDB • Powered by ${client.hostingService || 'Unknown'} Hosting` })
+                    .setFooter({ text: `Database on MongoDB • Powered by ${client.hostingService || 'Unknown'}` })
                     .setTimestamp();
 
                 await interaction.editReply({ embeds: [embed] });
@@ -2461,7 +2466,7 @@ async function handlePing(context, isInteraction = false) {
                         inline: false
                     }
                 )
-                .setFooter({ text: `Database on MongoDB • Powered by ${client.hostingService || 'Unknown'} Hosting` })
+                .setFooter({ text: `Database on MongoDB • Powered by ${client.hostingService || 'Unknown'}` })
                 .setTimestamp();
 
             await context.editReply({ embeds: [embed] });
@@ -2769,7 +2774,7 @@ function createPingEmbed(restLatency, wsLatency, clusterId, shard) {
                 inline: false
             }
         )
-        .setFooter({ text: `Database on MongoDB • Powered by ${client.hostingService || 'Unknown'} Hosting` })
+        .setFooter({ text: `Database on MongoDB • Powered by ${client.hostingService || 'Unknown'}` })
         .setTimestamp();
 }
 async function handleSongQuote(context, rawText, isInteraction = false) {
@@ -3739,6 +3744,74 @@ async function updatePlayerVoiceStatus(player) {
             await setVoiceChannelStatus(channelId, `${emojis.blade} | 24/7 enabled!`);
         } else {
             await setVoiceChannelStatus(channelId, `${emojis.greensparkles || '✨'} | Idle.`);
+        }
+    }
+}
+
+function safeEvaluate(expression) {
+
+    let clean = expression.replace(/\s+/g, '');
+
+    clean = clean.replace(/\^/g, '**');
+
+    if (/[^0-9+\-*/%().!sqrt]/.test(clean)) return null;
+
+    let processed = clean.replace(/(\d+)!/g, 'fact($1)')
+                         .replace(/sqrt\(/g, 'Math.sqrt(');
+
+    try {
+
+        const fact = (n) => {
+            if (n < 0 || !Number.isInteger(n)) return NaN;
+            return n <= 1 ? 1 : n * fact(n - 1);
+        };
+
+        const func = new Function('fact', 'return ' + processed);
+        const result = func(fact);
+
+        if (typeof result !== 'number' || !isFinite(result) || !Number.isInteger(result)) {
+            return null;
+        }
+        return result;
+    } catch (e) {
+        return null;
+    }
+}
+
+async function processCountingMessage(message, config) {
+    if (message.author.bot) return;
+
+    const expression = message.content.trim();
+    const result = safeEvaluate(expression);
+    const expected = config.current_number + 1;
+
+    let isCorrect = false;
+    let reason = '';
+
+    if (result === null) {
+        reason = 'invalid expression';
+    } else if (result !== expected) {
+        reason = `expected ${expected}, got ${result}`;
+    } else if (config.last_user_id === message.author.id) {
+        reason = 'same user as previous count';
+    } else {
+        isCorrect = true;
+    }
+
+    if (isCorrect) {
+        await message.react(emojis.greentick);
+        await client.db.updateCountingAfterCorrect(message.guild.id, result, message.author.id);
+    } else {
+        await message.react(emojis.error);
+        if (reason === 'same user as previous count') {
+            await messages.error(message.channel, "It is not your turn to count! Wait for someone else.");
+        } else if (reason.startsWith('expected') || reason === 'invalid expression') {
+            if (!config.toggle_reset) {
+                await messages.error(message.channel, "Wrong! Count reset to 0.");
+            }
+        }
+        if (!config.toggle_reset) {
+            await client.db.resetCounting(message.guild.id);
         }
     }
 }
@@ -5141,6 +5214,160 @@ async function handlePrefixCommand(message, cmd, args) {
 				break;
 			}
 			
+			case 'count': {
+				const subCmd = args[0] ? args[0].toLowerCase() : null;
+				const isAdmin = message.member.permissions.has(PermissionsBitField.Flags.Administrator);
+				if (!subCmd) {
+					return messages.info(
+						message.channel, 
+						`Provide an argument. Use ${client.prefix}count help for info!`
+					);
+				}
+				
+				if (subCmd === 'calc') {
+					const calcEmbed = new EmbedBuilder()
+						.setColor(config.embedColor)
+						.setTitle(`${emojis.calculator || '🧮'} Counting Calculations`)
+						.setDescription(
+							`**Supported Operations:**\n\n` +
+							`**Basic:** \`+\` \`-\` \`*\` \`/\` \`%\` (modulo)\n` +
+							`**Exponents:** \`^\` (power, e.g., \`9^2\`)\n` +
+							`**Advanced:** \`!\` (factorial), \`sqrt()\` (square root)\n` +
+							`**Grouping:** \`()\` parentheses\n\n` +
+							`**Rules:**\n` +
+							`• Result must be a **whole number** (integer)\n` +
+							`• Spaces are ignored\n` +
+							`• Division must yield integer result`
+						)
+						.setFooter({ text: 'Use these in the counting channel!' })
+						.setTimestamp();
+					return message.channel.send({ embeds: [calcEmbed] });
+				}
+				if (subCmd === 'help') {
+					const embed = new EmbedBuilder()
+						.setColor(config.embedColor)
+						.setTitle(`${emojis.info} Counting System`)
+						.setDescription(
+							`**Commands:**\n` +
+							`\`${client.prefix}count enable <channel>\` – Set counting channel (Admin only)\n` +
+							`\`${client.prefix}count disable\` – Disable counting (Admin only)\n` +
+							`\`${client.prefix}count toggle-reset\` – Toggle reset on wrong count (Admin only)\n` +
+							`\`${client.prefix}count start <number>\` – Start from a number (Admin only)\n` +
+							`\`${client.prefix}count calc\` – Show calculations guide`
+						)
+						.setFooter({ text: 'Use these commands in any channel.' })
+						.setTimestamp();
+					return message.channel.send({ embeds: [embed] });
+				}
+				
+				if (!isAdmin) {
+					return messages.error(message.channel, "You do not have permission to use this command!");
+				}
+				if (subCmd === 'enable') {
+					const channelArg = args[1];
+					if (!channelArg) return messages.error(message.channel, 'Please specify a channel (mention or ID).');
+
+					let channel;
+					if (channelArg.match(/^<#(\d+)>$/)) {
+						const id = channelArg.match(/^<#(\d+)>$/)[1];
+						channel = message.guild.channels.cache.get(id);
+					} else {
+						channel = message.guild.channels.cache.get(channelArg);
+					}
+
+					if (!channel || channel.type !== 0) {
+						return messages.error(message.channel, 'Invalid text channel.');
+					}
+
+					const success = await client.db.setCountingChannel(message.guild.id, channel.id);
+					if (success) {
+						const updatedConfig = await client.db.getCountingConfig(message.guild.id);
+						const currentNum = updatedConfig?.current_number || 0;
+						const nextNum = currentNum + 1;
+						const resetStatus = updatedConfig?.toggle_reset 
+							? "Wrong counts will **NOT** reset" 
+							: "Wrong counts **WILL** reset to 0";
+						
+						const embed = new EmbedBuilder()
+							.setColor(config.embedColor)
+							.setTitle(`${emojis.success} Counting Channel Enabled`)
+							.setDescription(
+								`${emojis.music} Channel: ${channel}\n` +
+								`${emojis.music} Current count: **${currentNum}**\n` +
+								`${emojis.music} Next number: **${nextNum}**\n` +
+								`${emojis.music} Status: ${resetStatus}`
+							)
+							.setFooter({ text: 'Use ~count help for more commands' })
+							.setTimestamp();
+						
+						await message.channel.send({ embeds: [embed] });
+					} else {
+						messages.error(message.channel, 'Failed to set counting channel.');
+					}
+				}
+				else if (subCmd === 'disable') {
+					const config = await client.db.getCountingConfig(message.guild.id);
+					if (!config) {
+						return messages.error(message.channel, 'Counting is not set up in this server. (use ');
+					}
+					if (!config.enabled) {
+						return messages.error(message.channel, 'Counting is already disabled.');
+					}
+					
+					const success = await client.db.disableCounting(message.guild.id);
+					if (success) {
+						messages.success(message.channel, 'Counting disabled in this server.');
+					} else {
+						messages.error(message.channel, 'Failed to disable counting.');
+					}
+				}
+				else if (subCmd === 'toggle-reset') {
+					const config = await client.db.getCountingConfig(message.guild.id);
+					if (!config) return messages.error(message.channel, 'Counting is not enabled in this server.');
+
+					const newState = !config.toggle_reset;
+					const success = await client.db.setCountingToggleReset(message.guild.id, newState);
+					if (success) {
+						if (newState) {
+							messages.success(
+								message.channel, 
+								`**Wrong counting will NOT result in resetting!**\n\nThe count will continue even after mistakes.`
+							);
+						} else {
+							messages.success(
+								message.channel, 
+								`**Wrong counting WILL result in resetting!**\n\nThe count will reset to 0 on any mistake.`
+							);
+						}
+					} else {
+						messages.error(message.channel, 'Failed to toggle reset mode.');
+					}
+				}
+				else if (subCmd === 'start') {
+					const num = parseInt(args[1], 10);
+					if (isNaN(num) || num < 0) {
+						return messages.error(message.channel, 'Please provide a valid non‑negative integer.');
+					}
+
+					const config = await client.db.getCountingConfig(message.guild.id);
+					if (!config) return messages.error(message.channel, 'Counting is not enabled in this server.');
+
+					const success = await client.db.setCountingStart(message.guild.id, num);
+					if (success) {
+						messages.success(
+							message.channel, 
+							`Counting starts from **${num}**. Next number should be **${num + 1}**.`
+						);
+					} else {
+						messages.error(message.channel, 'Failed to set start number.');
+					}
+				}
+				else {
+					messages.error(message.channel, 'Unknown subcommand. Use `~count` for help.');
+				}
+				break;
+			}
+			
 			/* STICKERS! */	
 			case 'emma-heart-st': {
 				try {
@@ -5253,16 +5480,27 @@ async function handlePrefixCommand(message, cmd, args) {
 			case 'nop': {
 				try {
 					if (message.author.id !== ownerId) {
-						return message.reply(`${emojis.blackcrown} This command is reserved to bot owner only!`);
+						return message.reply(`${emojis.blackcrown} This command is reserved for bot owner only!`);
 					}
+
 					const subCmd = args[0] ? args[0].toLowerCase() : null;
 					if (!subCmd) {
-						return messages.error(message.channel, `Usage: \`noprefix list\`, \`noprefix <user>\` (add), or \`noprefix remove <user>\``);
+						return messages.error(message.channel,
+							`Usage: \`noprefix list\`, \`noprefix <user>\` (add), \`noprefix remove <user>\`, \`noprefix enable\`, \`noprefix disable\``
+						);
+					}
+					if (subCmd === 'enable' || subCmd === 'disable') {
+						const newState = (subCmd === 'enable');
+						await db.setNoprefixGlobalEnabled(newState);
+						client.noprefixGlobalEnabled = newState;
+						return messages.success(message.channel,
+							`Global noprefix is now **${newState ? 'ENABLED' : 'DISABLED'}**.`
+						);
 					}
 					if (subCmd === 'list') {
 						const users = await db.getAllNoPrefixUsers();
 						if (users.length === 0) {
-							return messages.info(message.channel, 'No users have noprefix access (besides owner of the bot).');
+							return messages.info(message.channel, 'No users have noprefix access (besides owner).');
 						}
 						const userMentions = users.map(id => `<@${id}>`).join('\n');
 						const embed = new EmbedBuilder()
@@ -5273,16 +5511,13 @@ async function handlePrefixCommand(message, cmd, args) {
 						return message.channel.send({ embeds: [embed] });
 					}
 					if (subCmd === 'remove') {
-						if (!args[1]) {
-							return messages.error(message.channel, 'Please specify a user to remove.');
-						}
+						if (!args[1]) return messages.error(message.channel, 'Please specify a user to remove.');
 						const userId = args[1].replace(/[<@!>]/g, '');
 						let user;
 						try {
 							user = await client.users.fetch(userId, { force: true });
-						} catch (fetchError) {
-							console.error('❌ User fetch error:', fetchError);
-							return messages.error(message.channel, 'User not found or not a valid ID.');
+						} catch {
+							return messages.error(message.channel, 'User not found or invalid ID.');
 						}
 						const removed = await db.removeNoPrefixUser(userId);
 						if (removed) {
@@ -5290,33 +5525,27 @@ async function handlePrefixCommand(message, cmd, args) {
 						} else {
 							return messages.error(message.channel, 'That user does not have noprefix access.');
 						}
-					} else {
-						const userId = args[0].replace(/[<@!>]/g, '');
-						let user;
-						try {
-							user = await client.users.fetch(userId, { force: true });
-						} catch (fetchError) {
-							console.error('❌ User fetch error:', fetchError);
-							return messages.error(message.channel, 'User not found or not a valid ID.');
-						}
-						const added = await db.addNoPrefixUser(userId);
-						if (added) {
-							return messages.success(message.channel, `Added noprefix access for <@${user.id}>`);
-						} else {
-							return messages.error(message.channel, 'Failed to add user.');
-						}
 					}
+					const userId = args[0].replace(/[<@!>]/g, '');
+					let user;
+					try {
+						user = await client.users.fetch(userId, { force: true });
+					} catch {
+						return messages.error(message.channel, 'User not found or invalid ID.');
+					}
+					const added = await db.addNoPrefixUser(userId);
+					if (added) {
+						return messages.success(message.channel, `Added noprefix access for <@${user.id}>`);
+					} else {
+						return messages.error(message.channel, 'Failed to add user.');
+					}
+
 				} catch (error) {
 					console.error('❌ noprefix command error:', error);
 					return messages.error(message.channel, 'An unexpected error occurred.');
 				}
 				break;
 			}
-			
-            default: {
-                message.reply(`${emojis.info} | Unknown command! Use \`${client.prefix}help\` to see all commands.`);
-                break;
-            }
         }
 }
 
@@ -5409,64 +5638,99 @@ const sendImageWithDMButton = async (channel, embed, requester) => {
 
 client.on("messageCreate", async (message) => {
     if (message.author.bot) return;
-
     const mentionedUsers = message.mentions.users.filter(u => !u.bot);
     for (const [userId, user] of mentionedUsers) {
         try {
             const afkData = await db.getAFK(userId);
-            if (afkData) {
-                await sendAfkEmbed(message, user, afkData);
+            if (afkData) await sendAfkEmbed(message, user, afkData);
+        } catch (e) { console.error('AFK mention error:', e); }
+    }
+    if (message.guild) {
+        try {
+            const countingConfig = await db.getCountingConfig(message.guild.id);
+            if (countingConfig && countingConfig.enabled && message.channel.id === countingConfig.channel_id) {
+                let isCountCommand = false;
+                let cmdName = null;
+                let cmdArgs = [];
+                if (message.content.startsWith(client.prefix)) {
+                    const parts = message.content.slice(client.prefix.length).trim().split(/ +/);
+                    const first = parts[0]?.toLowerCase();
+                    if (first === 'count') {
+                        isCountCommand = true;
+                        cmdName = first;
+                        cmdArgs = parts.slice(1);
+                    }
+                }
+                const botMentionRegex = new RegExp(`^<@!?${client.user.id}>\\s+(count\\b.*)$`);
+                const mentionMatch = message.content.match(botMentionRegex);
+                if (mentionMatch) {
+                    const rest = mentionMatch[1].trim();
+                    const parts = rest.split(/ +/);
+                    const first = parts[0]?.toLowerCase();
+                    if (first === 'count') {
+                        isCountCommand = true;
+                        cmdName = first;
+                        cmdArgs = parts.slice(1);
+                    }
+                }
+
+                if (isCountCommand) {
+                    await handlePrefixCommand(message, cmdName, cmdArgs);
+                    return;
+                } else {
+                    await processCountingMessage(message, countingConfig);
+                    return;
+                }
             }
-        } catch (afkError) {
-            console.error('Error fetching mentioned AFK:', afkError);
+        } catch (error) {
+            console.error('Error in counting channel check:', error);
         }
     }
+    const botMentionRegex = new RegExp(`^<@!?${client.user.id}>\\s+(.*)$`);
+    const mentionMatch = message.content.match(botMentionRegex);
+    if (mentionMatch) {
+        const rest = mentionMatch[1].trim();
+        if (rest) {
+            const args = rest.split(/ +/);
+            const command = args.shift().toLowerCase();
 
-    if (message.content.startsWith(client.prefix)) {
-        const args = message.content.slice(client.prefix.length).trim().split(/ +/);
-        const command = args.shift().toLowerCase();
+            if (validCommands.has(command)) {
+                await handlePrefixCommand(message, command, args);
+			} else {
 
-        const voiceCommands = ['play', 'p', 'playspotify', 'pause', 'resume', 'skip', 'stop',
-                               'queue', 'q', 'nowplaying', 'np', 'volume', 'vol', 'servervolume',
-                               'shuffle', 'loop', 'remove', 'clear', 'status', 'filter', 'move', 'add'];
-        if (voiceCommands.includes(command) && !message.member.voice.channel) {
-            return message.reply({
-                content: `${emojis.error} | You must be in a voice channel!`,
-                flags: MessageFlags.Ephemeral
-            });
-        }
-
-        try {
-            await handlePrefixCommand(message, command, args);
-        } catch (error) {
-            message.reply(`${emojis.error} | An error occurred while processing your command!`);
+                await message.reply(
+                    `${emojis.info} | Command not found! Use ${client.prefix}help to see all commands.`
+                );
+            }
         }
         return;
     }
-
-    const hasNoPrefix = (message.author.id === ownerId) || await db.isNoPrefixUser(message.author.id);
-
-    if (hasNoPrefix) {
-        const args = message.content.trim().split(/ +/);
-        const cmdName = args.shift().toLowerCase();
-
-        if (validCommands.has(cmdName)) {
-
-            const voiceCommands = ['play', 'p', 'playspotify', 'pause', 'resume', 'skip', 'stop',
-                                   'queue', 'q', 'nowplaying', 'np', 'volume', 'vol', 'servervolume',
-                                   'shuffle', 'loop', 'remove', 'clear', 'status', 'filter', 'move', 'add'];
-            if (voiceCommands.includes(cmdName) && !message.member.voice.channel) {
-                await message.reply({
-                    content: `${emojis.error} | You must be in a voice channel!`,
-                    flags: MessageFlags.Ephemeral
-                });
-
-            } else {
-                await handlePrefixCommand(message, cmdName, args);
+    if (message.content.startsWith(client.prefix)) {
+        const args = message.content.slice(client.prefix.length).trim().split(/ +/);
+        const command = args.shift().toLowerCase();
+        if (validCommands.has(command)) {
+            await handlePrefixCommand(message, command, args);
+        }
+        return;
+    }
+    if (client.noprefixGlobalEnabled) {
+        const hasNoPrefix = (message.author.id === ownerId) || await db.isNoPrefixUser(message.author.id);
+        if (hasNoPrefix) {
+            const args = message.content.trim().split(/ +/);
+            const cmdName = args.shift().toLowerCase();
+            if (validCommands.has(cmdName)) {
+                const voiceCommands = ['play', 'p', 'playspotify', 'pause', 'resume', 'skip', 'stop', 's',
+                                     'queue', 'q', 'nowplaying', 'np', 'volume', 'vol', 'servervolume',
+                                     'shuffle', 'loop', 'remove', 'clear', 'status', 'filter', 'move', 'add'];
+                
+                if (voiceCommands.includes(cmdName) && !message.member.voice.channel) {
+                    await message.reply(`${emojis.error} | You must be in a voice channel!`);
+                } else {
+                    await handlePrefixCommand(message, cmdName, args);
+                }
             }
         }
     }
-
     try {
         const authorAfk = await db.getAFK(message.author.id);
         if (authorAfk) {
@@ -5477,9 +5741,7 @@ client.on("messageCreate", async (message) => {
                 .setTimestamp();
             await message.channel.send({ embeds: [welcomeEmbed] }).catch(() => {});
         }
-    } catch (afkError) {
-        console.error('Error removing AFK status:', afkError);
-    }
+    } catch (e) { console.error('AFK removal error:', e); }
 });
 client.riffy.on("nodeError", (node, error) => {
     console.log(`${emojis.error} Node "${node.name}" encountered an error: ${error.message}.`);
@@ -5635,9 +5897,9 @@ async function loginWithRetry(retries = 3, delay = 10000) {
             console.error(`❌ Login attempt ${attempt} failed: ${error.message}`);
             
             if (error.message.includes('429') || error.message.includes('rate limit')) {
-                console.error(`⚠️ Rate limit detected! This is likely because ${client.hostingService || 'your hosting'} Hosting\'s IP is being rate limited by Discord.`);
+                console.error(`⚠️ Rate limit detected! This is likely because ${client.hostingService || 'your hosting'}\'s IP is being rate limited by Discord.`);
                 console.error('💡 Solutions:');
-				console.error(`1. Contact ${client.hostingService || 'your hosting'} Hosting support about Discord API rate limits`);
+				console.error(`1. Contact ${client.hostingService || 'your hosting'} support about Discord API rate limits`);
                 console.error('2. Ask them to whitelist Discord API endpoints');
                 console.error('3. Consider using a different hosting provider');
                 console.error('4. Wait a few hours and try again');
