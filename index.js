@@ -920,10 +920,11 @@ client.once("clientReady", async () => {
                     const humans = guild.members.cache.filter(m => !m.user.bot).size;
                     totalHumans += humans;
                 }
-                log('BOT', `Github Repo: ${config.githubRepo || 'Not set'}`);
                 log('BOT', `Bot Tag: ${client.user.tag}`);
+				log('BOT', `Prefix: ${config.prefix}`);
                 log('BOT', `Total Servers: ${client.guilds.cache.size}`);
                 log('BOT', `Total Users: ${totalHumans}`);
+				log('BOT', `Github Repo: ${config.githubRepo || 'Not set'}`);
                 line();
             } catch (err) {
                 log('ERROR', `Failed to fetch owner or count users: ${err.message}`);
