@@ -5268,10 +5268,10 @@ async function handlePrefixCommand(message, cmd, args) {
 				if (subCmd === 'calc') {
 					const calcEmbed = new EmbedBuilder()
 						.setColor(config.embedColor)
-						.setTitle(`${emojis.calculator || '🧮'} Counting Calculations`)
+						.setTitle(`${emojis.calculus || '🧮'} Counting Calculations`)
 						.setDescription(
 							`**Supported Operations:**\n\n` +
-							`**Basic:** \`+\` \`-\` \`*\` \`/\` \`%\` (modulo)\n` +
+							`**Basic:** \`+\` \`-\` \`*\` \`/\` \`%\`\n` +
 							`**Exponents:** \`^\` (power, e.g., \`9^2\`)\n` +
 							`**Advanced:** \`!\` (factorial), \`sqrt()\` (square root)\n` +
 							`**Grouping:** \`()\` parentheses\n\n` +
