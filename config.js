@@ -16,5 +16,20 @@ module.exports = {
             password: "https://dsc.gg/ajidevserver",
             name: "Serenetia"
         }
-	]
+	],
+    // GitHub links
+    githubProfile: 'https://github.com/RXS-reyansh',
+    githubRepo: 'https://github.com/RXS-reyansh/Hermaca-Music-Bot',
+    
+    colorClient: '#D2EAF1',
+    colorDatabase: '#CB674C',
+    colorNode: '#1C0770',
+    colorLoadingData: '#CFFFE2',
+    color247: '#CFFFE2',
+    colorOwner: '#FF0000',
+    colorBot: '#FF0000',
+    colorServerList: '#FF0000',
+    colorSlash: '#FF0000',
+    colorYay: '#FF0000',
+    colorError: '#511D43'
 };

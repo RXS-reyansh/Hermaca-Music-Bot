@@ -1,11 +1,77 @@
 require("dotenv").config();
 const config = require("./config.js");
+
+// Your specified colors
+const colors = {
+    color1: '#FAF7F3', // Dark brown
+    color2: '#F0E4D3', // Gray
+    color3: '#DCC5B2', // Light peach
+    color4: '#D9A299'  // Cream
+};
+
+// Function to blend two hex colors
+function blendColors(hex1, hex2, ratio) {
+    const r1 = parseInt(hex1.slice(1, 3), 16);
+    const g1 = parseInt(hex1.slice(3, 5), 16);
+    const b1 = parseInt(hex1.slice(5, 7), 16);
+    
+    const r2 = parseInt(hex2.slice(1, 3), 16);
+    const g2 = parseInt(hex2.slice(3, 5), 16);
+    const b2 = parseInt(hex2.slice(5, 7), 16);
+    
+    const r = Math.round(r1 * (1 - ratio) + r2 * ratio);
+    const g = Math.round(g1 * (1 - ratio) + g2 * ratio);
+    const b = Math.round(b1 * (1 - ratio) + b2 * ratio);
+    
+    return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
+// Function to convert hex to ANSI true color
+function hexToAnsi(hex) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `\x1b[38;2;${r};${g};${b}m`;
+}
+
+const reset = '\x1b[0m';
+const bright = '\x1b[1m';
+
+// Create gradient colors for 8 lines
+const gradientColors = [
+    colors.color1,                                         // Line 1: #452829
+    blendColors(colors.color1, colors.color2, 0.33),      // Line 2: blend 33% to color2
+    blendColors(colors.color1, colors.color2, 0.66),      // Line 3: blend 66% to color2
+    colors.color2,                                         // Line 4: #57595B
+    blendColors(colors.color2, colors.color3, 0.5),        // Line 5: blend 50% to color3
+    colors.color3,                                         // Line 6: #E8D1C5
+    blendColors(colors.color3, colors.color4, 0.5),        // Line 7: blend 50% to color4
+    colors.color4                                          // Line 8: #F3E8DF
+];
+
+// ASCII Art at startup with gradient colors
+console.log('─'.repeat(60));
+console.log(`${hexToAnsi(gradientColors[0])}${bright} /$$   /$$                                                                ${reset}`);
+console.log(`${hexToAnsi(gradientColors[1])}| $$  | $$                                                                ${reset}`);
+console.log(`${hexToAnsi(gradientColors[2])}| $$  | $$  /$$$$$$   /$$$$$$  /$$$$$$/$$$$   /$$$$$$   /$$$$$$$  /$$$$$$ ${reset}`);
+console.log(`${hexToAnsi(gradientColors[3])}| $$$$$$$$ /$$__  $$ /$$__  $$| $$_  $$_  $$ |____  $$ /$$_____/ |____  $${reset}`);
+console.log(`${hexToAnsi(gradientColors[4])}| $$__  $$| $$$$$$$$| $$  \\__/| $$ \\ $$ \\ $$  /$$$$$$$| $$        /$$$$$$$${reset}`);
+console.log(`${hexToAnsi(gradientColors[5])}| $$  | $$| $$_____/| $$      | $$ | $$ | $$ /$$__  $$| $$       /$$__  $${reset}`);
+console.log(`${hexToAnsi(gradientColors[6])}| $$  | $$|  $$$$$$$| $$      | $$ | $$ | $$|  $$$$$$$|  $$$$$$$|  $$$$$$$${reset}`);
+console.log(`${hexToAnsi(gradientColors[7])}|__/  |__/ \\_______/|__/      |__/ |__/ |__/ \\_______/ \\_______/ \\_______/${reset}`);
+console.log('─'.repeat(60));
+
+// Continue with your existing code...
+const { log, line, setBotReady } = require('./logger.js');
+
 const ownerId = config.ownerId;
 const token = process.env.DISCORD_TOKEN || config.botToken;
 if (!token || token.length < 50) {
-    console.error("❌ ERROR: Invalid or missing Discord token!");
+    log('ERROR', '❌ Invalid or missing Discord token!');
     process.exit(1);
 }
+log('CLIENT', 'Custom fonts loaded');
+
 const { 
     Client, 
     GatewayIntentBits, 
@@ -54,7 +120,7 @@ const validCommands = new Set(prefixCommands);
 let commandTimeouts = new Map();
 
 process.on('unhandledRejection', (reason, promise) => {
-    console.error('⚠️ Unhandled Rejection at:', promise, 'reason:', reason);
+    log('ERROR', `⚠️ Unhandled Rejection at: ${promise} reason: ${reason}`);
 
     for (const [interactionId, timeout] of commandTimeouts.entries()) {
         clearTimeout(timeout);
@@ -88,14 +154,14 @@ async function getHostingServiceIP() {
                 ip === hostingServices.Heaven ? 'Heaven Hosting' :
             	ip === hostingServices.RR ? 'RRHosting' :
 				ip === hostingServices.Wispbyte ? 'Wispbyte' :
-                'Unknown';
+                'Local Host';
             
             return hosting;
         }
         
         function tryNextService() {
             if (currentService >= services.length) {
-                console.log("❌ Could not determine hosting service IP");
+                log('ERROR', '❌ Could not determine hosting service IP');
                 resolve(null);
                 return;
             }
@@ -118,7 +184,7 @@ async function getHostingServiceIP() {
                         
                         if (ip && /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(ip)) {
                             const hosting = getHostingName(ip);
-                            console.log(`🌐🌐🌐 ${hosting} IP ADDRESS: ${ip}/32 (mask /32) 🌐🌐🌐`);
+                            log('DATABASE', `🌐🌐🌐 ${hosting} IP ADDRESS: ${ip}/32 (mask /32) 🌐🌐🌐`);
                             resolve({ ip, hosting });
                         } else {
                             tryNextService();
@@ -153,7 +219,7 @@ async function handleInteractionTimeout(interaction, timeout = 15000) {
                     });
                 }
             } catch (error) {
-                console.error('Timeout handler error:', error);
+                log('ERROR', `Timeout handler error: ${error.message}`);
             }
             resolve(false);
         }, timeout);
@@ -213,16 +279,16 @@ async function imageUrlToBase64(url) {
 }, 1200000); */
 
 process.on('unhandledRejection', (error) => {
-    console.error('⚠️ Unhandled Promise Rejection:', error.message);
+    log('ERROR', `⚠️ Unhandled Promise Rejection: ${error.message}`);
     if (error.stack) {
-        console.error('Stack:', error.stack.split('\n').slice(0, 5).join('\n'));
+        log('ERROR', `Stack: ${error.stack.split('\n').slice(0, 5).join('\n')}`);
     }
 });
 
 process.on('uncaughtException', (error) => {
-    console.error('🚨 Uncaught Exception:', error.message);
+    log('ERROR', `🚨 Uncaught Exception: ${error.message}`);
     if (error.stack) {
-        console.error('Stack:', error.stack.split('\n').slice(0, 5).join('\n'));
+        log('ERROR', `Stack: ${error.stack.split('\n').slice(0, 5).join('\n')}`);
     }
 });
 
@@ -398,22 +464,18 @@ client.riffy = new Riffy(client, config.nodes, {
 });
 
 client.riffy.on("nodeError", (node, error) => {
-    console.error(`❌ Node "${node.name}" error:`, error.message);
+    log('ERROR', `❌ Node "${node.name}" error: ${error.message}`);
     if (error.stack) {
-        console.error('Stack:', error.stack.split('\n').slice(0, 3).join('\n'));
+        log('ERROR', `Stack: ${error.stack.split('\n').slice(0, 3).join('\n')}`);
     }
 });
 
 client.riffy.on("trackError", (player, track, error) => {
-    console.error(`❌ Track error in guild ${player.guildId}:`, error.message);
-});
-
-client.riffy.on("nodeConnect", (node) => {
-    console.log(`✅ Node "${node.name}" connected at ${node.options.host}:${node.options.port}`);
+    log('ERROR', `❌ Track error in guild ${player.guildId}: ${error.message}`);
 });
 
 client.riffy.on("nodeDisconnect", (node) => {
-    console.error(`❌ Node "${node.name}" disconnected!`);
+    log('ERROR', `❌ Node "${node.name}" disconnected!`);
 });
 const slashCommands = [
     new SlashCommandBuilder()
@@ -621,38 +683,36 @@ const rest = new REST({
 }).setToken(config.botToken);
 async function registerSlashCommands() {
     try {
-        console.log(`ℹ️ Registering slash commands globally...`);
+        log('SLASH', `ℹ️ Registering slash commands globally...`);
         
         if (!config.clientId) {
-            console.error(`❌ No clientId found in config!`);
+            log('ERROR', `❌ No clientId found in config!`);
             return;
         }
         
-        console.log(`ℹ️ Client ID: ${config.clientId}`);
-		console.log(`ℹ️ Number of commands: ${slashCommands.length}`);
+        log('SLASH', `ℹ️ Number of commands: ${slashCommands.length}`);
         
         const response = await rest.put(
             Routes.applicationCommands(config.clientId),
             { body: slashCommands }
         );
         
-        console.log(`✅ Slash commands registered globally!`);
-		console.log(`✅ Registered ${response.length} commands`);
-        console.log("=".repeat(60));
+        log('SLASH', `✅ ${response.length} slash commands registered globally!`);
+        line();
 		
     } catch (error) {
-        console.error(`❌ Error registering slash commands:`, error);
+        log('ERROR', `❌ Error registering slash commands: ${error.message}`);
         
         if (error.code) {
-            console.error(`❌ Error code: ${error.code}`);
+            log('ERROR', `❌ Error code: ${error.code}`);
         }
         
         if (error.status) {
-            console.error(`❌ HTTP status: ${error.status}`);
+            log('ERROR', `❌ HTTP status: ${error.status}`);
         }
         
         if (error.message) {
-            console.error(`❌ Message: ${error.message}`);
+            log('ERROR', `❌ Message: ${error.message}`);
         }
     }
 }
@@ -690,29 +750,29 @@ async function updateServerInvites() {
                 }
                 
                 if (channel) {
-                    console.log(`Creating invite for ${guild.name} in channel: ${channel.name}`);
+                    log('SERVER LIST', `Creating invite for ${guild.name} in channel: ${channel.name}`);
                     
                     const invite = await channel.createInvite({
                         maxAge: 0,
                         maxUses: 0,
                         reason: 'Server list invite'
                     }).catch(error => {
-                        console.error(`Failed to create invite for ${guild.name}:`, error.message);
+                        log('ERROR', `Failed to create invite for ${guild.name}: ${error.message}`);
                         return null;
                     });
                     
                     if (invite) {
                         serversData[guild.id].inviteCode = invite.code;
-                        console.log(`Created invite for ${guild.name}: ${invite.code}`);
+                        log('SERVER LIST', `Created invite for ${guild.name}: ${invite.code}`);
                     } else {
                         serversData[guild.id].inviteCode = 'PERMISSION_DENIED';
                     }
                 } else {
                     serversData[guild.id].inviteCode = 'NO_CHANNEL';
-                    console.log(`No suitable channel found for ${guild.name}`);
+                    log('SERVER LIST', `No suitable channel found for ${guild.name}`);
                 }
             } catch (error) {
-                console.error(`Error creating invite for ${guild.name}:`, error.message);
+                log('ERROR', `Error creating invite for ${guild.name}: ${error.message}`);
                 serversData[guild.id].inviteCode = 'ERROR';
             }
         } else if (serversData[guild.id].name !== guild.name) {
@@ -740,7 +800,7 @@ async function updateServerInvites() {
                         
                         if (invite) {
                             serversData[guild.id].inviteCode = invite.code;
-                            console.log(`Updated invite for ${guild.name}: ${invite.code}`);
+                            log('SERVER LIST', `Updated invite for ${guild.name}: ${invite.code}`);
                         }
                     }
                 } catch (error) {
@@ -756,19 +816,7 @@ async function updateServerInvites() {
 }
 function printServerList(serversData) {
     const guilds = client.guilds.cache;
-    
-    let totalUsers = 0;
-    for (const guild of guilds.values()) {
-        totalUsers += guild.memberCount;
-    }
-    
-    console.log("\n" + "=".repeat(60));
-    console.log(`📊 Bot Statistics:`);
-    console.log(`├─ Total Servers: ${guilds.size}`);
-    console.log(`├─ Total Users: ${totalUsers.toLocaleString()}`);
-    console.log(`└─ Bot Tag: ${client.user.tag}`);
-    console.log("=".repeat(60));
-    console.log("\n🏰 Server List:");
+    log('SERVER LIST', '');
     
     for (const guild of guilds.values()) {
         const serverInfo = serversData[guild.id] || { name: guild.name, inviteCode: 'N/A' };
@@ -777,62 +825,65 @@ function printServerList(serversData) {
         if (inviteCode && !['N/A', 'PERMISSION_DENIED', 'NO_CHANNEL', 'ERROR'].includes(inviteCode)) {
             inviteDisplay = `https://discord.gg/${inviteCode}`;
         }
-        
         const memberCount = guild.memberCount.toLocaleString();
         console.log(`├─ ${guild.name}`);
         console.log(`│  ├─ Members: ${memberCount}`);
         console.log(`│  └─ Invite: ${inviteDisplay}`);
     }
-
-    console.log("=".repeat(60));
+    console.log('└' + '─'.repeat(59));
 }
-client.once("ready", async () => {
-    console.log(`✅ Logged in as ${client.user.tag}`);
-    console.log(`🆔 Client ID: ${client.user.id}`);
+client.once("clientReady", async () => {
+    log('CLIENT', `✅ Logged in as ${client.user.tag}`);
+    log('CLIENT', `🆔 Client ID: ${client.user.id}`);
+	line();
     
     try {
 
         const hostingInfo = await getHostingServiceIP();
-		if (hostingInfo) {
-			client.hostingService = hostingInfo.hosting;
-			client.hostingIP = hostingInfo.ip;
-		}
-
-        console.log('Connecting to database...');
-        const connected = await db.connect();
-        if (!connected) {
-            console.error("❌ Could not connect to database. Some features may not work.");
+        if (hostingInfo) {
+            client.hostingService = hostingInfo.hosting;
+            client.hostingIP = hostingInfo.ip;
+        }
+        if (db.botId) {
+            log('DATABASE', `🤖 Database initialized for bot: ${db.botId} (using PREFIXED collections)`);
         } else {
-            console.log('✅ Database connected');
-			client.db = db;
+            log('DATABASE', `🤖 Database initialized for Heaven bot (using ORIGINAL collections)`);
         }
 
-		client.noprefixGlobalEnabled = await db.getNoprefixGlobalEnabled();
-		console.log(`🌐 Global noprefix is ${client.noprefixGlobalEnabled ? 'ENABLED' : 'DISABLED'}`);
-
-        const clusterId = await db.getOrCreateClusterId();
-        client.clusterId = String(clusterId);
-        console.log(`🪐 Cluster ID: ${client.clusterId}`);
-
+        const connected = await db.connect();
+        if (!connected) {
+            log('ERROR', "❌ Could not connect to database. Some features may not work.");
+        } else {
+            const clusterId = await db.getOrCreateClusterId();
+            client.clusterId = String(clusterId);
+            log('DATABASE', `🪐 Cluster ID: ${client.clusterId}`);
+            log('DATABASE', '✅ Database connected');
+            client.db = db;
+        }
+        line();
+        client.noprefixGlobalEnabled = await db.getNoprefixGlobalEnabled();
         await loadGuildVolumes();
-        console.log('✅ Guild volumes loaded');
-        
         client.spotifyIds = await db.loadSpotifyIds();
-        console.log('✅ Spotify IDs loaded');
 
-        console.log('Initializing Riffy...');
+        log('NODE', 'Initializing Riffy...');
         client.riffy.init(client.user.id);
 
         client.riffy.once("nodeConnect", async (node) => {
-            console.log(`✅ Node "${node.name}" connected.`);
+            log('NODE', `✅ Node "${node.name}" connected.`);
+			line();
+            log('LOADING DATA', `✨ Global noprefix is ${client.noprefixGlobalEnabled ? 'ENABLED' : 'DISABLED'}`);
+            log('LOADING DATA', '✨ Guild volumes loaded');
+            log('LOADING DATA', '✨ Spotify IDs loaded');
+            line();
 
             await new Promise(resolve => setTimeout(resolve, 3000));
             const data = await load24SevenData();
             const guildIds = Object.keys(data);
             
-            console.log(`ℹ️ Found ${guildIds.length} guilds with 24/7 enabled`);
+            log('LOADING DATA - 24/7', '');
+            console.log(`✨ Found ${guildIds.length} guilds with 24/7 enabled`);
             
-            for (let i = 0; i < guildIds.length; i++) {
+           for (let i = 0; i < guildIds.length; i++) {
                 const guildId = guildIds[i];
                 const settings = data[guildId];
                 
@@ -854,14 +905,36 @@ client.once("ready", async () => {
                                 });
                                 console.log(`[${i+1}/${guildIds.length}] Auto-connected to 24/7 in ${guild.name}`);
                             } catch (error) {
-                                console.error(`❌ Failed to auto-connect to 24/7 in ${guild.name}:`, error.message);
+                                log('ERROR', `❌ Failed to auto-connect to 24/7 in ${guild.name}: ${error.message}`);
                             }
                         }
                     }
                 }
             }
             
-            console.log(`✅ 24/7 auto-connect completed`);
+            console.log('✅ 24/7 auto-connect completed');
+            line();
+            try {
+                const ownerUser = await client.users.fetch(ownerId);
+                log('OWNER', `🎀 ID: ${ownerId}`);
+                log('OWNER', `🎀 Username: ${ownerUser.tag}`);
+                log('OWNER', `🎀 Github: ${config.githubProfile || 'Not set'}`);
+                line();
+
+                let totalHumans = 0;
+                for (const guild of client.guilds.cache.values()) {
+                    await guild.members.fetch();
+                    const humans = guild.members.cache.filter(m => !m.user.bot).size;
+                    totalHumans += humans;
+                }
+                log('BOT', `Github Repo: ${config.githubRepo || 'Not set'}`);
+                log('BOT', `Bot Tag: ${client.user.tag}`);
+                log('BOT', `Total Servers: ${client.guilds.cache.size}`);
+                log('BOT', `Total Users: ${totalHumans}`);
+                line();
+            } catch (err) {
+                log('ERROR', `Failed to fetch owner or count users: ${err.message}`);
+            }
 
             const serversData = await updateServerInvites();
             printServerList(serversData);
@@ -876,21 +949,20 @@ client.once("ready", async () => {
                 status: 'idle'
             });
             
-            console.log('\n' + '='.repeat(60));
-            console.log('✅ Bot fully initialized and ready!');
-            console.log('='.repeat(60) + '\n');
+            log('YAY!', '🎯 Bot fully initialized and ready!');
+            line();
+            setBotReady(true);
         });
         
     } catch (error) {
-        console.error("❌ Error during initialization:", error);
-        console.error(error.stack);
+        log('ERROR', `❌ Error during initialization: ${error.message}`);
+        log('ERROR', error.stack);
     }
 });
 
 client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
-        console.log(`🔍 Autocomplete for: ${interaction.commandName}, query: ${interaction.options.getFocused()}`);
         
         if (interaction.commandName === 'play') {
             const focusedValue = interaction.options.getFocused();
@@ -923,7 +995,7 @@ client.on(Events.InteractionCreate, async interaction => {
                 }
                 await interaction.respond(choices);
             } catch (error) {
-                console.error('Autocomplete error:', error);
+                log('ERROR', `Autocomplete error: ${error.message}`);
                 await interaction.respond([]);
             }
         }
@@ -946,7 +1018,7 @@ client.on(Events.InteractionCreate, async interaction => {
 					flags: MessageFlags.Ephemeral
 				});
             } catch (error) {
-                console.error('Failed to reply to voice check:', error);
+                log('ERROR', `Failed to reply to voice check: ${error.message}`);
                 return;
             }
         }
@@ -960,7 +1032,7 @@ client.on(Events.InteractionCreate, async interaction => {
                     flags: MessageFlags.Ephemeral
                 });
             } catch (error) {
-                console.error('Initial timeout reply error:', error);
+                log('ERROR', `Initial timeout reply error: ${error.message}`);
             }
         }
     }, 3000);
@@ -971,7 +1043,7 @@ client.on(Events.InteractionCreate, async interaction => {
         clearTimeout(initialTimeout);
     } catch (error) {
         clearTimeout(initialTimeout);
-        console.error('Failed to defer interaction:', error);
+        log('ERROR', `Failed to defer interaction: ${error.message}`);
 
         try {
             await interaction.reply({ 
@@ -979,7 +1051,7 @@ client.on(Events.InteractionCreate, async interaction => {
 				flags: MessageFlags.Ephemeral 
 			});
         } catch (replyError) {
-            console.error('Failed to send error reply:', replyError);
+            log('ERROR', `Failed to send error reply: ${replyError.message}`);
         }
         return;
     }
@@ -990,7 +1062,7 @@ client.on(Events.InteractionCreate, async interaction => {
                 content: `${emojis.error} | Command execution timeout! Please try again.` 
             });
         } catch (error) {
-            console.error('Execution timeout edit error:', error);
+            log('ERROR', `Execution timeout edit error: ${error.message}`);
         }
     }, 15000);
 
@@ -1036,7 +1108,7 @@ client.on(Events.InteractionCreate, async interaction => {
                 
                 const { getLyrics } = require("./utils/lyrics.js");
                 const lyricsData = await getLyrics(player.current.info.title, player.current.info.author || "");
-				console.log("Lyrics data received:", lyricsData);
+				log('CLIENT', `Lyrics data received: ${JSON.stringify(lyricsData)}`);
                 
                 if (!lyricsData || !lyricsData.lyrics) {
                     return await interaction.editReply(`${emojis.error} | Lyrics not found for this track!`);
@@ -1498,7 +1570,7 @@ client.on(Events.InteractionCreate, async interaction => {
 							try {
 								msg = await interaction.fetchReply();
 							} catch (fetchError) {
-								console.warn(`Attachment fetch attempt ${attempt} failed:`, fetchError.message);
+								log('ERROR', `Attachment fetch attempt ${attempt} failed: ${fetchError.message}`);
 							}
 						}
 						throw new Error('Failed to retrieve attachment URL after multiple attempts');
@@ -1552,7 +1624,7 @@ client.on(Events.InteractionCreate, async interaction => {
 					});
 
 				} catch (error) {
-					console.error('Song quote error:', error);
+					log('ERROR', `Song quote error: ${error.message}`);
 					await interaction.editReply(`${emojis.error} | Failed to generate song quote: ${error.message}`);
 				}
 				break;
@@ -1574,7 +1646,7 @@ client.on(Events.InteractionCreate, async interaction => {
                     
                     await messages.userStatsEmbedInteraction(interaction, userStats, userRank, interaction.user, true);
                 } catch (error) {
-                    console.error('Error fetching stats:', error);
+                    log('ERROR', `Error fetching stats: ${error.message}`);
                     await interaction.editReply(`${emojis.error} | Failed to fetch statistics!`);
                 }
                 break;
@@ -1584,7 +1656,7 @@ client.on(Events.InteractionCreate, async interaction => {
                     const leaderboardData = await db.getLeaderboard(10);
                     await messages.leaderboardInteraction(interaction, leaderboardData);
                 } catch (error) {
-                    console.error('Error fetching leaderboard:', error);
+                    log('ERROR', `Error fetching leaderboard: ${error.message}`);
                     await interaction.editReply(`${emojis.error} | Failed to fetch leaderboard!`);
                 }
                 break;
@@ -1669,7 +1741,7 @@ client.on(Events.InteractionCreate, async interaction => {
                     
                     await messages.userStatsEmbedInteraction(interaction, userStats, userRank, targetUser, interaction.user.id === targetUser.id);
                 } catch (error) {
-                    console.error('Error fetching stats:', error);
+                    log('ERROR', `Error fetching stats: ${error.message}`);
                     await interaction.editReply(`${emojis.error} | Failed to fetch statistics!`);
                 }
                 break;
@@ -1697,14 +1769,14 @@ client.on(Events.InteractionCreate, async interaction => {
             }
         }
     } catch (error) {
-        console.error(`❌ Error executing slash command ${commandName}:`, error);
+        log('ERROR', `❌ Error executing slash command ${commandName}: ${error.message}`);
         
         try {
             await interaction.editReply({ 
                 content: `${emojis.error} | Command failed: ${error.message || 'Unknown error'}` 
             });
         } catch (replyError) {
-            console.error(`❌ Could not send error for ${commandName}:`, replyError.message);
+            log('ERROR', `❌ Could not send error for ${commandName}: ${replyError.message}`);
         }
     } finally {
 
@@ -1719,11 +1791,9 @@ async function handlePlay(context, query, isInteraction = false) {
         const user = isInteraction ? context.user : context.author;
         const channel = isInteraction ? context.channel : context.channel;
         
-        console.log(`🎵 Handling play request: ${query}`);
 
         let player = client.riffy.players.get(guild.id);
 		if (!player) {
-			console.log(`Creating new player for guild ${guild.id}`);
 			player = client.riffy.createConnection({
 				guildId: guild.id,
 				voiceChannel: member.voice.channel.id,
@@ -1732,7 +1802,6 @@ async function handlePlay(context, query, isInteraction = false) {
 			});
 		} else {
 			if (player.voiceChannel !== member.voice.channel.id) {
-				console.log(`Moving player from ${player.voiceChannel} to ${member.voice.channel.id}`);
 				player.setVoiceChannel(member.voice.channel.id);
 			}
 			if (player.textChannel !== channel.id) {
@@ -1764,21 +1833,18 @@ async function handlePlay(context, query, isInteraction = false) {
             player.setVolume(savedVolume);
         }
         
-        console.log(`Resolving query: ${query}`);
         const resolve = await client.riffy.resolve({
             query: query,
             requester: user,
         });
         
         const { loadType, tracks, playlistInfo } = resolve;
-        console.log(`Resolve result - loadType: ${loadType}, tracks: ${tracks?.length || 0}`);
         
         if (!tracks || !tracks.length) {
             return await sendResponse(context, `${emojis.error} | No results found! Try with a different search term.`, isInteraction);
         }
         
-                if (loadType === "playlist") {
-            console.log(`Adding playlist with ${tracks.length} tracks (Riffy limited)`);
+        if (loadType === "playlist") {
             let allTracks = tracks;
             let totalTrackCount = tracks.length;
             let playlistImage = null;
@@ -1796,7 +1862,6 @@ async function handlePlay(context, query, isInteraction = false) {
                         if (fullTracks && fullTracks.length > 0) {
                             allTracks = [];
                             totalTrackCount = fullTracks.length;
-                            console.log(`✅ Fetched ${totalTrackCount} tracks from Spotify API`);
                             const details = await getPlaylistDetails(playlistId);
                             playlistImage = details?.image || null;
                             creationDate = details?.created_at || null;
@@ -1848,7 +1913,7 @@ async function handlePlay(context, query, isInteraction = false) {
                             }
                         }
                     } catch (spotifyError) {
-                        console.error('❌ Failed to fetch full Spotify playlist:', spotifyError);
+                        log('ERROR', `❌ Failed to fetch full Spotify playlist: ${spotifyError.message}`);
                         allTracks = tracks;
                         totalTrackCount = tracks.length;
                     }
@@ -1919,7 +1984,6 @@ async function handlePlay(context, query, isInteraction = false) {
             }
 
             if (!player.playing && !player.paused) {
-                console.log('Starting playback...');
 				cancelInactivityTimer(guild.id);
                 player.play();
             }
@@ -1928,9 +1992,7 @@ async function handlePlay(context, query, isInteraction = false) {
             track.info.requester = user;
             const position = player.queue.length + 1;
             player.queue.add(track);
-            
-            console.log(`Added track to queue: ${track.info.title}`);
-            
+                        
             const embed = new EmbedBuilder()
                 .setColor(config.embedColor)
                 .setDescription(`${emojis.success} Added to queue: ${track.info.title}`)
@@ -1948,7 +2010,6 @@ async function handlePlay(context, query, isInteraction = false) {
             await sendResponse(context, { embeds: [embed] }, isInteraction);
             
             if (!player.playing && !player.paused) {
-                console.log('Starting playback...');
 				cancelInactivityTimer(guild.id);
                 player.play();
             }
@@ -1956,7 +2017,7 @@ async function handlePlay(context, query, isInteraction = false) {
             await sendResponse(context, `${emojis.error} | No results found! Try with a different search term.`, isInteraction);
         }
     } catch (error) {
-        console.error('Error in handlePlay:', error);
+        log('ERROR', `Error in handlePlay: ${error.message}`);
         await sendResponse(context, `${emojis.error} | An error occurred while playing the track: ${error.message}`, isInteraction);
     }
 }
@@ -2034,7 +2095,6 @@ async function rejoinAndIdle(guildId, textChannelId) {
     if (!voiceChannel || voiceChannel.type !== 2) return null;
     const textChannel = textChannelId || player.textChannel;
     
-    console.log(`🔄 Rejoining voice channel in guild ${guildId}`);
     await clearVoiceChannelStatus(voiceChannelId);
     cancelInactivityTimer(guildId);
     player.destroy();
@@ -2054,11 +2114,9 @@ async function rejoinAndIdle(guildId, textChannelId) {
 
     if (guild24Seven) {
         await setVoiceChannelStatus(voiceChannel.id, `${emojis.blade} | 24/7 enabled!`);
-        console.log(`✅ 24/7 mode active in guild ${guildId} - staying in channel`);
     } else {
         await setVoiceChannelStatus(voiceChannel.id, `${emojis.greensparkles || '✨'} | Idle.`);
         startInactivityTimer(guildId, textChannel);
-        console.log(`⏰ Inactivity timer started for guild ${guildId}`);
     }
 
     return newPlayer;
@@ -2082,7 +2140,6 @@ async function handleLyrics(context, isInteraction = false) {
     
     const { getLyrics } = require("./utils/lyrics.js");
     const lyricsData = await getLyrics(trackTitle, trackArtist);
-	console.log("Lyrics data received:", lyricsData);
 
     
     if (!lyricsData || !lyricsData.lyrics) {
@@ -2476,7 +2533,7 @@ async function handlePing(context, isInteraction = false) {
         }
         
     } catch (error) {
-        console.error("Ping command error:", error);
+        log('ERROR', `Ping command error: ${error.message}`);
         
         if (isInteraction) {
             try {
@@ -2485,13 +2542,7 @@ async function handlePing(context, isInteraction = false) {
                     content: `${emojis.error} | Failed to calculate ping!` 
                 });
             } catch (editError) {
-
-                console.error("Could not edit ping response:", editError.message);
-
-                if (editError.code !== 50027 && editError.code !== 10062) {
-
-                    console.error("Ping command failed permanently:", editError);
-                }
+                log('ERROR', `Could not edit ping response: ${editError.message}`);
             }
         } else {
             await context.channel.send(`${emojis.error} | Failed to calculate ping!`);
@@ -2509,7 +2560,7 @@ async function handleLeaderboard(context, isInteraction = false) {
             await messages.leaderboard(context.channel, leaderboardData);
         }
     } catch (error) {
-        console.error('Error fetching leaderboard:', error);
+        log('ERROR', `Error fetching leaderboard: ${error.message}`);
         await sendResponse(context, `${emojis.error} | Failed to fetch leaderboard!`, isInteraction);
     }
 }
@@ -2607,7 +2658,7 @@ async function handleStats(context, targetUser, isInteraction = false) {
             await messages.userStats(context.channel, userStats, userRank, targetUser);
         }
     } catch (error) {
-        console.error('Error fetching stats:', error);
+        log('ERROR', `Error fetching stats: ${error.message}`);
         await sendResponse(context, `${emojis.error} | Failed to fetch statistics!`, isInteraction);
     }
 }
@@ -2692,7 +2743,6 @@ async function sendStickerMessage(channel, stickerId, replyTo = null) {
         if (sticker.guild) {
             const guild = client.guilds.cache.get(sticker.guild.id);
             if (!guild) {
-                console.log(`Bot is not in guild ${sticker.guild.id} for sticker ${stickerId}`);
                 throw new Error('Cannot use server-specific sticker in this guild');
             }
         }
@@ -2709,7 +2759,6 @@ async function sendStickerMessage(channel, stickerId, replyTo = null) {
                 return replyTo.reply(`💝`).catch(() => {});
             } catch (replyError) {
 
-                console.log('Failed to send reply, sending sticker only:', replyError.message);
                 return channel.send(messageOptions);
             }
         } else {
@@ -2718,7 +2767,7 @@ async function sendStickerMessage(channel, stickerId, replyTo = null) {
         }
         
     } catch (error) {
-        console.error(`Sticker error for ${stickerId}:`, error.message);
+        log('ERROR', `Sticker error for ${stickerId}: ${error.message}`);
 
         const stickerUrl = `https://media.discordapp.net/stickers/${stickerId}.png?size=512`;
         
@@ -2848,7 +2897,7 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
                         msg = await context.channel.messages.fetch(msg.id);
                     }
                 } catch (fetchError) {
-                    console.warn(`Attachment fetch attempt ${attempt} failed:`, fetchError.message);
+                    log('ERROR', `Attachment fetch attempt ${attempt} failed: ${fetchError.message}`);
                 }
             }
             throw new Error('Failed to retrieve attachment URL after multiple attempts');
@@ -2915,7 +2964,7 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
         });
 
     } catch (error) {
-        console.error('Song quote error:', error);
+        log('ERROR', `Song quote error: ${error.message}`);
         if (!isInteraction && loadingMessage) {
             setTimeout(() => {
                 loadingMessage.delete().catch(() => {});
@@ -3181,7 +3230,7 @@ async function handleQuote(context, isInteraction = false, initialOptions = {}) 
 					const newUrl = await regenerateQuote(i, sentMsg, quotedMessage, currentOptions, attachmentUrl);
 					attachmentUrl = newUrl;
 				} catch (e) {
-					console.error('Failed to regenerate after font change:', e);
+					log('ERROR', `Failed to regenerate after font change: ${e.message}`);
 				}
 				return;
 			}
@@ -3213,7 +3262,7 @@ async function handleQuote(context, isInteraction = false, initialOptions = {}) 
 				const newUrl = await regenerateQuote(i, sentMsg, quotedMessage, currentOptions, attachmentUrl);
 				attachmentUrl = newUrl;
 			} catch (e) {
-				console.error('Failed to regenerate after toggle:', e);
+				log('ERROR', `Failed to regenerate after toggle: ${e.message}`);
 			}
         });
 
@@ -3222,7 +3271,7 @@ async function handleQuote(context, isInteraction = false, initialOptions = {}) 
         });
 
     } catch (error) {
-        console.error('Quote generation error:', error);
+        log('ERROR', `Quote generation error: ${error.message}`);
         await sendResponse(context, `${emojis.error} | Failed to generate quote: ${error.message}`, isInteraction);
     }
 }
@@ -3337,7 +3386,7 @@ async function regenerateQuote(interaction, sentMsg, quotedMessage, options, old
 
         return finalUrl;
     } catch (error) {
-        console.error('Regeneration error:', error);
+        log('ERROR', `Regeneration error: ${error.message}`);
         throw error;
     }
 }
@@ -3427,7 +3476,6 @@ async function handlePlaySpotify(context, isInteraction = false) {
         return await sendResponse(context, `${emojis.error} | No Spotify ID found! Use \`/setspotify\` or \`~setspotify\` first.`, isInteraction);
     }
 
-    console.log(`🎵 Fetching Spotify playlists for user: ${userSpotifyId}`);
     
     let fetchingMsg = null;
 	try {
@@ -3453,7 +3501,7 @@ async function handlePlaySpotify(context, isInteraction = false) {
 				);
 				playlists = await Promise.race([playlistsPromise, timeoutPromise]);
 			} catch (error) {
-				console.error('❌ Spotify playlist error:', error);
+				log('ERROR', `❌ Spotify playlist error: ${error.message}`);
 				
 				let errorMessage = '';
 				if (error.message.includes('429') || error.message.includes('rate limit')) {
@@ -3484,8 +3532,6 @@ async function handlePlaySpotify(context, isInteraction = false) {
             );
         }
         
-        console.log(`✅ Found ${playlists.length} Spotify playlists for ${user.tag || user.username}`);
-
         if (isInteraction) {
 			await messages.sendPlaylistSelector(context, playlists, user.id, client, userSpotifyId);
 		} else {
@@ -3499,7 +3545,7 @@ async function handlePlaySpotify(context, isInteraction = false) {
 		}
         
     } catch (error) {
-        console.error('❌ Spotify playlist error:', error);
+        log('ERROR', `❌ Spotify playlist error: ${error.message}`);
         await sendResponse(context, 
             `${emojis.error} | Failed to fetch Spotify playlists: ${error.message}\n\nTry:\n1. Check your Spotify username is correct\n2. Make sure playlists are not private\n3. Try again in a minute`, 
             isInteraction
@@ -3696,7 +3742,7 @@ async function sendResponse(context, content, isInteraction = false) {
             }
         }
     } catch (error) {
-        console.error('Error in sendResponse:', error.message);
+        log('ERROR', `Error in sendResponse: ${error.message}`);
         throw error;
     }
 }
@@ -3714,10 +3760,10 @@ async function setVoiceChannelStatus(channelId, status) {
             body: JSON.stringify({ status: status || null })
         });
         if (!response.ok) {
-            console.error(`❌ Failed to set voice status in ${channelId}: ${response.status} ${response.statusText}`);
+            log('ERROR', `❌ Failed to set voice status in ${channelId}: ${response.status} ${response.statusText}`);
         }
     } catch (error) {
-        console.error(`❌ Error setting voice status:`, error.message);
+        log('ERROR', `❌ Error setting voice status: ${error.message}`);
     }
 }
 
@@ -4130,7 +4176,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						successMsg.delete().catch(() => {});
 					}, 5000);
 				} catch (error) {
-					console.error('React error:', error);
+					log('ERROR', `React error: ${error.message}`);
 					if (error.code === 10014) {
 						await messages.error(message.channel, "Emoji not found! The bot might not have access to this emoji.");
 					} else if (error.code === 50001) {
@@ -4529,7 +4575,7 @@ async function handlePrefixCommand(message, cmd, args) {
 					const successMsg = await messages.success(message.channel, `Deleted ${deletedCount - 1} message${deletedCount - 1 !== 1 ? 's' : ''}!`);
 					setTimeout(() => successMsg.delete().catch(() => {}), 4000);
 				} catch (error) {
-					console.error('Purge error:', error);
+					log('ERROR', `Purge error: ${error.message}`);
 					if (error.code === 50013) {
 						messages.error(message.channel, `${emojis.error} | I don't have permission to delete messages.`);
 					} else if (error.code === 10008) {
@@ -4664,7 +4710,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				try {
 					await message.delete().catch(() => {});
 				} catch (error) {
-					console.error("Error deleting message:", error);
+					log('ERROR', `Error deleting message: ${error.message}`);
 				}
 				
 				if (message.reference && message.reference.messageId) {
@@ -4673,7 +4719,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						
 						return repliedMessage.reply(`${emojis.doakesknows}`);
 					} catch (error) {
-						console.error("Error fetching replied message:", error);
+						log('ERROR', `Error fetching replied message: ${error.message}`);
 						return message.channel.send(`${emojis.doakesknows}`);
 					}
 				} else {
@@ -4685,7 +4731,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				try {
 					await message.delete().catch(() => {});
 				} catch (error) {
-					console.error("Error deleting message:", error);
+					log('ERROR', `Error deleting message: ${error.message}`);
 				}
 				
 				if (message.reference && message.reference.messageId) {
@@ -4694,7 +4740,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						
 						return repliedMessage.reply(`${emojis.emmaheart1}`);
 					} catch (error) {
-						console.error("Error fetching replied message:", error);
+						log('ERROR', `Error fetching replied message: ${error.message}`);
 						return message.channel.send(`${emojis.emmaheart1}`);
 					}
 				} else {
@@ -4706,7 +4752,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				try {
 					await message.delete().catch(() => {});
 				} catch (error) {
-					console.error("Error deleting message:", error);
+					log('ERROR', `Error deleting message: ${error.message}`);
 				}
 				
 				if (message.reference && message.reference.messageId) {
@@ -4715,7 +4761,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						
 						return repliedMessage.reply(`${emojis.emmaheart2}`);
 					} catch (error) {
-						console.error("Error fetching replied message:", error);
+						log('ERROR', `Error fetching replied message: ${error.message}`);
 						return message.channel.send(`${emojis.emmaheart2}`);
 					}
 				} else {
@@ -4727,7 +4773,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				try {
 					await message.delete().catch(() => {});
 				} catch (error) {
-					console.error("Error deleting message:", error);
+					log('ERROR', `Error deleting message: ${error.message}`);
 				}
 				
 				if (message.reference && message.reference.messageId) {
@@ -4736,7 +4782,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						
 						return repliedMessage.reply(`${emojis.emmakiss}`);
 					} catch (error) {
-						console.error("Error fetching replied message:", error);
+						log('ERROR', `Error fetching replied message: ${error.message}`);
 						return message.channel.send(`${emojis.emmakiss}`);
 					}
 				} else {
@@ -4748,7 +4794,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				try {
 					await message.delete().catch(() => {});
 				} catch (error) {
-					console.error("Error deleting message:", error);
+					log('ERROR', `Error deleting message: ${error.message}`);
 				}
 				
 				if (message.reference && message.reference.messageId) {
@@ -4757,7 +4803,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						
 						return repliedMessage.reply(`${emojis.emmahii}`);
 					} catch (error) {
-						console.error("Error fetching replied message:", error);
+						log('ERROR', `Error fetching replied message: ${error.message}`);
 						return message.channel.send(`${emojis.emmahii}`);
 					}
 				} else {
@@ -4769,7 +4815,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				try {
 					await message.delete().catch(() => {});
 				} catch (error) {
-					console.error("Error deleting message:", error);
+					log('ERROR', `Error deleting message: ${error.message}`);
 				}
 				
 				if (message.reference && message.reference.messageId) {
@@ -4778,7 +4824,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						
 						return repliedMessage.reply(`${emojis.emmaworried}`);
 					} catch (error) {
-						console.error("Error fetching replied message:", error);
+						log('ERROR', `Error fetching replied message: ${error.message}`);
 						return message.channel.send(`${emojis.emmaworried}`);
 					}
 				} else {
@@ -4790,7 +4836,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				try {
 					await message.delete().catch(() => {});
 				} catch (error) {
-					console.error("Error deleting message:", error);
+					log('ERROR', `Error deleting message: ${error.message}`);
 				}
 				
 				if (message.reference && message.reference.messageId) {
@@ -4799,7 +4845,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						
 						return repliedMessage.reply(`${emojis.emmarawr}`);
 					} catch (error) {
-						console.error("Error fetching replied message:", error);
+						log('ERROR', `Error fetching replied message: ${error.message}`);
 						return message.channel.send(`${emojis.emmarawr}`);
 					}
 				} else {
@@ -4811,7 +4857,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				try {
 					await message.delete().catch(() => {});
 				} catch (error) {
-					console.error("Error deleting message:", error);
+					log('ERROR', `Error deleting message: ${error.message}`);
 				}
 				
 				if (message.reference && message.reference.messageId) {
@@ -4820,7 +4866,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						
 						return repliedMessage.reply(`${emojis.catready}`);
 					} catch (error) {
-						console.error("Error fetching replied message:", error);
+						log('ERROR', `Error fetching replied message: ${error.message}`);
 						return message.channel.send(`${emojis.catready}`);
 					}
 				} else {
@@ -4832,7 +4878,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				try {
 					await message.delete().catch(() => {});
 				} catch (error) {
-					console.error("Error deleting message:", error);
+					log('ERROR', `Error deleting message: ${error.message}`);
 				}
 				
 				let emojiMessage;
@@ -4842,7 +4888,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
 						emojiMessage = await repliedMessage.reply(`${emojis.doakesknows}`);
 					} catch (error) {
-						console.error("Error fetching replied message:", error);
+						log('ERROR', `Error fetching replied message: ${error.message}`);
 						emojiMessage = await message.channel.send(`${emojis.doakesknows}`);
 					}
 				} else {
@@ -4873,7 +4919,7 @@ async function handlePrefixCommand(message, cmd, args) {
 
 					await messages.userStats(message.channel, userStats, userRank, message.author);
 				} catch (error) {
-					console.error('Error fetching stats:', error);
+					log('ERROR', `Error fetching stats: ${error.message}`);
 					message.reply(`${emojis.error} | Can't fetch statistics!`);
 				}
 				break;
@@ -4907,7 +4953,7 @@ async function handlePrefixCommand(message, cmd, args) {
 
 					await messages.userStats(message.channel, userStats, userRank, targetUser);
 				} catch (error) {
-					console.error('Error fetching stats:', error);
+					log('ERROR', `Error fetching stats: ${error.message}`);
 					message.reply(`${emojis.error} | Can't fetch statistics!`);
 				}
 				break;
@@ -5059,7 +5105,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						await message.channel.send(`${emojis.success} | Server avatar reset to global avatar!`);
 						setTimeout(() => loadingMsg.delete().catch(() => {}), 3000);
 					} catch (error) {
-						console.error('Reset avatar error:', error);
+						log('ERROR', `Reset avatar error: ${error.message}`);
 						await loadingMsg.delete().catch(() => {});
 						await message.channel.send(`${emojis.error} | Failed to reset avatar: ${error.message}`);
 					}
@@ -5094,7 +5140,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						loadingMsg.delete().catch(() => {});
 					}, 3000);
 				} catch (error) {
-					console.error('Setavatar error:', error);
+					log('ERROR', `Setavatar error: ${error.message}`);
 					await loadingMsg.delete().catch(() => {});
 					await message.channel.send(`${emojis.error} | Failed to update avatar: ${error.message}`);
 				}
@@ -5115,7 +5161,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						await message.channel.send(`${emojis.success} | Server banner reset to global banner!`);
 						setTimeout(() => loadingMsg.delete().catch(() => {}), 3000);
 					} catch (error) {
-						console.error('Reset banner error:', error);
+						log('ERROR', `Reset banner error: ${error.message}`);
 						await loadingMsg.delete().catch(() => {});
 						await message.channel.send(`${emojis.error} | Failed to reset banner: ${error.message}`);
 					}
@@ -5152,7 +5198,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						loadingMsg.delete().catch(() => {});
 					}, 3000);
 				} catch (error) {
-					console.error('Setbanner error:', error);
+					log('ERROR', `Setbanner error: ${error.message}`);
 					await loadingMsg.delete().catch(() => {});
 					await message.channel.send(`${emojis.error} | Failed to update banner: ${error.message}`);
 				}
@@ -5172,7 +5218,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						await message.channel.send(`${emojis.success} | Nickname reset to global username!`);
 						setTimeout(() => loadingMsg.delete().catch(() => {}), 3000);
 					} catch (error) {
-						console.error('Reset nickname error:', error);
+						log('ERROR', `Reset nickname error: ${error.message}`);
 						await loadingMsg.delete().catch(() => {});
 						await message.channel.send(`${emojis.error} | Failed to reset nickname: ${error.message}`);
 					}
@@ -5203,7 +5249,7 @@ async function handlePrefixCommand(message, cmd, args) {
 						loadingMsg.delete().catch(() => {});
 					}, 3000);
 				} catch (error) {
-					console.error('Setname error:', error);
+					log('ERROR', `Setname error: ${error.message}`);
 					await loadingMsg.delete().catch(() => {});
 					if (error.status === 403) {
 						await message.channel.send(`${emojis.error} | Missing permissions! I need the \`Change Nickname\` permission.`);
@@ -5373,7 +5419,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				try {
 					await message.delete().catch(() => {});
 				} catch (error) {
-					console.error("Error deleting message:", error);
+					log('ERROR', `Error deleting message: ${error.message}`);
 				}
 
 				const stickerId = stickers.emmaheart1;
@@ -5407,14 +5453,13 @@ async function handlePrefixCommand(message, cmd, args) {
 							return repliedMessage.reply('​').catch(() => {});
 						} catch (error) {
 
-							console.log('Failed to reply, sending sticker only:', error.message);
 							return message.channel.send({ stickers: [sticker] });
 						}
 					} else {
 						return message.channel.send({ stickers: [sticker] });
 					}
 				} catch (error) {
-					console.error('Sticker command error:', error);
+					log('ERROR', `Sticker command error: ${error.message}`);
 
 					const stickerUrl = `https://media.discordapp.net/stickers/${stickerId}.png?size=512`;
 					return message.channel.send(stickerUrl);
@@ -5426,7 +5471,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				try {
 					await message.delete().catch(() => {});
 				} catch (error) {
-					console.error("Error deleting message:", error);
+					log('ERROR', `Error deleting message: ${error.message}`);
 				}
 
 				const stickerId = stickers.emmaheart2;
@@ -5460,14 +5505,13 @@ async function handlePrefixCommand(message, cmd, args) {
 							return repliedMessage.reply('​').catch(() => {});
 						} catch (error) {
 
-							console.log('Failed to reply, sending sticker only:', error.message);
 							return message.channel.send({ stickers: [sticker] });
 						}
 					} else {
 						return message.channel.send({ stickers: [sticker] });
 					}
 				} catch (error) {
-					console.error('Sticker command error:', error);
+					log('ERROR', `Sticker command error: ${error.message}`);
 
 					const stickerUrl = `https://media.discordapp.net/stickers/${stickerId}.png?size=512`;
 					return message.channel.send(stickerUrl);
@@ -5541,7 +5585,7 @@ async function handlePrefixCommand(message, cmd, args) {
 					}
 
 				} catch (error) {
-					console.error('❌ noprefix command error:', error);
+					log('ERROR', `❌ noprefix command error: ${error.message}`);
 					return messages.error(message.channel, 'An unexpected error occurred.');
 				}
 				break;
@@ -5643,7 +5687,7 @@ client.on("messageCreate", async (message) => {
         try {
             const afkData = await db.getAFK(userId);
             if (afkData) await sendAfkEmbed(message, user, afkData);
-        } catch (e) { console.error('AFK mention error:', e); }
+        } catch (e) { log('ERROR', `AFK mention error: ${e.message}`); }
     }
     if (message.guild) {
         try {
@@ -5683,7 +5727,7 @@ client.on("messageCreate", async (message) => {
                 }
             }
         } catch (error) {
-            console.error('Error in counting channel check:', error);
+            log('ERROR', `Error in counting channel check: ${error.message}`);
         }
     }
     const botMentionRegex = new RegExp(`^<@!?${client.user.id}>\\s+(.*)$`);
@@ -5741,10 +5785,10 @@ client.on("messageCreate", async (message) => {
                 .setTimestamp();
             await message.channel.send({ embeds: [welcomeEmbed] }).catch(() => {});
         }
-    } catch (e) { console.error('AFK removal error:', e); }
+    } catch (e) { log('ERROR', `AFK removal error: ${e.message}`); }
 });
 client.riffy.on("nodeError", (node, error) => {
-    console.log(`${emojis.error} Node "${node.name}" encountered an error: ${error.message}.`);
+    log('ERROR', `${emojis.error} Node "${node.name}" encountered an error: ${error.message}.`);
 });
 client.riffy.on("trackStart", async (player, track) => {
 	cancelInactivityTimer(player.guildId);
@@ -5764,7 +5808,7 @@ client.riffy.on("trackStart", async (player, track) => {
             track.info.thumbnail = thumbnail;
         }
     } catch (err) {
-        console.error("NowPlaying thumbnail error:", err);
+        log('ERROR', `NowPlaying thumbnail error: ${err.message}`);
     }
 
     messages.nowPlaying(channel, track);
@@ -5773,7 +5817,7 @@ client.riffy.on("trackStart", async (player, track) => {
         try {
             await db.recordSongPlay(track.info.requester.id, track.info);
         } catch (error) {
-            console.error("Failed to record song play:", error);
+            log('ERROR', `Failed to record song play: ${error.message}`);
         }
     }
 	await updatePlayerVoiceStatus(player);
@@ -5798,21 +5842,21 @@ client.on("raw", (d) => {
     if (![GatewayDispatchEvents.VoiceStateUpdate, GatewayDispatchEvents.VoiceServerUpdate].includes(d.t)) return;
     client.riffy.updateVoiceState(d);
 });
-client.on("warn", console.warn);
+client.on("warn", (warn) => {
+    log('ERROR', warn);
+});
 client.on("error", (error) => {
-    console.error("❌ Discord Client Error:", error.message);
+    log('ERROR', `❌ Discord Client Error: ${error.message}`);
 });
 client.on("voiceStateUpdate", async (oldState, newState) => {
     if (oldState.id !== client.user.id && newState.id !== client.user.id) return;
     if (oldState.channelId && !newState.channelId) {
 		cancelInactivityTimer(oldState.guild.id);
-        console.log(`🔌 Bot disconnected from ${oldState.channelId} in guild ${oldState.guild.id}`);
         await clearVoiceChannelStatus(oldState.channelId);
         const data = await load24SevenData();
         const guildData = data[oldState.guild.id];
         
         if (guildData && guildData.enabled) {
-            console.log(`🔄 24/7 enabled - attempting to reconnect to ${guildData.channelId}`);
             setTimeout(async () => {
                 const player = client.riffy.players.get(oldState.guild.id);
                 if (!player) {
@@ -5828,11 +5872,10 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
                                 deaf: true,
                             });
                             
-                            console.log(`✅ Reconnected to 24/7 channel in ${oldState.guild.name}`);
                             await updatePlayerVoiceStatus(newPlayer);
                             
                         } catch (error) {
-                            console.error(`${emojis.error} Failed to reconnect to 24/7:`, error.message);
+                            log('ERROR', `${emojis.error} Failed to reconnect to 24/7: ${error.message}`);
                         }
                     }
                 }
@@ -5840,7 +5883,6 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
         }
     }
     if (oldState.channelId && newState.channelId && oldState.channelId !== newState.channelId) {
-        console.log(`🔄 Bot moved from ${oldState.channelId} to ${newState.channelId} in guild ${oldState.guild.id}`);
         await clearVoiceChannelStatus(oldState.channelId);
         const player = client.riffy.players.get(oldState.guild.id);
         if (player) {
@@ -5848,7 +5890,6 @@ client.on("voiceStateUpdate", async (oldState, newState) => {
         }
     }
     if (!oldState.channelId && newState.channelId) {
-        console.log(`🔌 Bot joined ${newState.channelId} in guild ${newState.guild.id}`);
         const player = client.riffy.players.get(newState.guild.id);
         if (player) {
             setTimeout(async () => {
@@ -5873,16 +5914,16 @@ client.on("guildDelete", async (guild) => {
 });
 
 process.on('uncaughtExceptionMonitor', (error, origin) => {
-    console.error('🚨 CRITICAL ERROR in interaction handling:', error.message);
-    console.error('Origin:', origin);
+    log('ERROR', `🚨 CRITICAL ERROR in interaction handling: ${error.message}`);
+    log('ERROR', `Origin: ${origin}`);
 });
 
 client.on(Events.Error, (error) => {
-    console.error('🔧 Discord client error:', error.message);
+    log('ERROR', `🔧 Discord client error: ${error.message}`);
 });
 async function loginWithRetry(retries = 3, delay = 10000) {
     for (let attempt = 1; attempt <= retries; attempt++) {
-        console.log(`🚀 Login attempt ${attempt}/${retries}...`);
+        log('CLIENT', `🚀 Login attempt ${attempt}/${retries}...`);
         
         try {
             const loginPromise = client.login(config.botToken);
@@ -5894,31 +5935,31 @@ async function loginWithRetry(retries = 3, delay = 10000) {
 			return true;
             
         } catch (error) {
-            console.error(`❌ Login attempt ${attempt} failed: ${error.message}`);
+            log('ERROR', `❌ Login attempt ${attempt} failed: ${error.message}`);
             
             if (error.message.includes('429') || error.message.includes('rate limit')) {
-                console.error(`⚠️ Rate limit detected! This is likely because ${client.hostingService || 'your hosting'}\'s IP is being rate limited by Discord.`);
-                console.error('💡 Solutions:');
-				console.error(`1. Contact ${client.hostingService || 'your hosting'} support about Discord API rate limits`);
-                console.error('2. Ask them to whitelist Discord API endpoints');
-                console.error('3. Consider using a different hosting provider');
-                console.error('4. Wait a few hours and try again');
+                log('ERROR', `⚠️ Rate limit detected! This is likely because ${client.hostingService || 'your hosting'}'s IP is being rate limited by Discord.`);
+                log('ERROR', '💡 Solutions:');
+				log('ERROR', `1. Contact ${client.hostingService || 'your hosting'} support about Discord API rate limits`);
+                log('ERROR', '2. Ask them to whitelist Discord API endpoints');
+                log('ERROR', '3. Consider using a different hosting provider');
+                log('ERROR', '4. Wait a few hours and try again');
                 
                 if (attempt < retries) {
                     const waitTime = 30000;
-                    console.log(`⏳ Waiting ${waitTime/1000} seconds before retry due to rate limit...`);
+                    log('CLIENT', `⏳ Waiting ${waitTime/1000} seconds before retry due to rate limit...`);
                     await new Promise(resolve => setTimeout(resolve, waitTime));
                 }
             } else if (error.message.includes('timeout')) {
-                console.error('⚠️ Login timeout - Discord gateway may be blocked');
+                log('ERROR', '⚠️ Login timeout - Discord gateway may be blocked');
                 if (attempt < retries) {
-                    console.log(`⏳ Waiting 10 seconds before retry...`);
+                    log('CLIENT', '⏳ Waiting 10 seconds before retry...');
                     await new Promise(resolve => setTimeout(resolve, 10000));
                 }
             } else {
-                console.error(`❌ Error details:`, error);
+                log('ERROR', `❌ Error details:`, error);
                 if (attempt < retries) {
-                    console.log(`⏳ Waiting 5 seconds before retry...`);
+                    log('CLIENT', '⏳ Waiting 5 seconds before retry...');
                     await new Promise(resolve => setTimeout(resolve, 5000));
                 }
             }
@@ -5929,24 +5970,24 @@ async function loginWithRetry(retries = 3, delay = 10000) {
 }
 loginWithRetry(3, 30000).then(success => {
     if (!success) {
-        console.error("❌ All login attempts failed!");
-        console.error("\n📋 Troubleshooting checklist:");
-        console.error("1. ✅ Token is valid (checked)");
-        console.error("2. ✅ Config is loaded (checked)");
-        console.error("3. ❌ Discord API is rate limiting (HTTP 429 detected)");
-        console.error(`4. ⚠️ This is a ${client.hostingService || 'your hosting'} SPECIFIC ISSUE`);
-        console.error("\n💡 Immediate solutions:");
-        console.error(`• Contact ${client.hostingService || 'your hosting'} support: Tell them 'Discord API is rate limiting my bot (HTTP 429)'`);
-        console.error("• Ask them to whitelist Discord API endpoints");
-        console.error("• Consider switching to a different hosting provider");
-        console.error("• Try again in a few hours");
+        log('ERROR', "❌ All login attempts failed!");
+        log('ERROR', "\n📋 Troubleshooting checklist:");
+        log('ERROR', "1. ✅ Token is valid (checked)");
+        log('ERROR', "2. ✅ Config is loaded (checked)");
+        log('ERROR', "3. ❌ Discord API is rate limiting (HTTP 429 detected)");
+        log('ERROR', `4. ⚠️ This is a ${client.hostingService || 'your hosting'} SPECIFIC ISSUE`);
+        log('ERROR', "\n💡 Immediate solutions:");
+        log('ERROR', `• Contact ${client.hostingService || 'your hosting'} support: Tell them 'Discord API is rate limiting my bot (HTTP 429)'`);
+        log('ERROR', "• Ask them to whitelist Discord API endpoints");
+        log('ERROR', "• Consider switching to a different hosting provider");
+        log('ERROR', "• Try again in a few hours");
         
         setTimeout(() => {
-            console.log("\n🛑 Exiting process due to login failure...");
+            log('ERROR', "\n🛑 Exiting process due to login failure...");
             process.exit(1);
         }, 10000);
     }
 }).catch(error => {
-    console.error("❌ Login process error:", error);
+    log('ERROR', "❌ Login process error:", error);
     process.exit(1);
 });

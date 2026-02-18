@@ -83,9 +83,7 @@ try {
     registerFont(path.join(fontsPath, 'Poppins-Regular.ttf'), { family: 'Poppins', weight: '400' });
     registerFont(path.join(fontsPath, 'Poppins-Bold.ttf'), { family: 'Poppins', weight: '700' });
     registerFont(path.join(fontsPath, 'Poppins-Italic.ttf'), { family: 'Poppins', style: 'italic', weight: '400' });
-    console.log('✅ Custom fonts loaded');
 } catch (error) {
-    console.log('⚠️ Using default fonts (Poppins not found):', error.message);
 }
 
 // Theme colors

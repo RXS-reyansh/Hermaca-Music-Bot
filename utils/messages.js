@@ -415,7 +415,7 @@ module.exports = {
 			const config = require("../config.js");
 			const emojis = require("../emojis.js");
 			
-			const hostingText = hostingService ? `Powered by ${hostingService} Hosting` : "Powered by Asterix Hosting";
+			const hostingText = `Powered by ${hostingService}`;
 			
 			const embed = new EmbedBuilder()
 				.setColor(config.embedColor)
@@ -624,8 +624,6 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 			}
 		}
 		
-		console.log(`Spotify playlists for ${user?.tag || 'unknown'}: ${playlists.length} playlists found`);
-		
 		if (playlists.length === 0) {
 			if (isInteraction) {
 				return await context.editReply({ 
@@ -759,8 +757,6 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 					
 					collector.stop('selected');
 					
-					console.log(`Selected playlist: ${selectedPlaylist.name} (${selectedPlaylist.id})`);
-					
 					try {
 						await i.editReply({
 							content: '',
@@ -804,7 +800,6 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 							player.setVolume(savedVolume);
 						}
 						const playlistUrl = `https://open.spotify.com/playlist/${selectedPlaylist.id}`;
-						console.log(`🎵 Resolving Spotify playlist via plugin: ${playlistUrl}`);
 						
 						let result;
 						try {
@@ -875,9 +870,7 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 								track.info.requester = i.user;
 								player.queue.add(track);
 							}
-							
-							console.log(`✅ Added ${tracks.length} tracks via Spotify plugin`);
-							
+					
 							if (!player.playing && !player.paused) player.play();
 							
 							let thumbnail = selectedPlaylist.image || tracks[0]?.info?.thumbnail || null;

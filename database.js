@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const { log } = require('./logger.js');
 
 class Database {
     constructor() {
@@ -17,14 +18,7 @@ class Database {
         this.dbName = "HermacaDiscordBot";
         this.db = null;
         this.connected = false;
-
         this.botId = process.env.BOT_IDENTIFIER || '';
-        
-        if (this.botId) {
-            console.log(`🤖 Database initialized for bot: ${this.botId} (using PREFIXED collections)`);
-        } else {
-            console.log(`🤖 Database initialized for Heaven bot (using ORIGINAL collections)`);
-        }
     }
 
     getPrefixedCollection(collectionName) {
@@ -39,10 +33,10 @@ class Database {
             await this.client.connect();
             this.db = this.client.db(this.dbName);
             this.connected = true;
-            console.log(`🪐 Connected to MongoDB Atlas for bot: ${this.botId}`);
+            log('DATABASE', `🪐 Connected to MongoDB Atlas for bot: ${this.botId || 'Heaven'}`);
             return true;
         } catch (error) {
-            console.error("❌ MongoDB connection error:", error.message);
+            log('ERROR', `❌ MongoDB connection error: ${error.message}`);
             return false;
         }
     }
@@ -58,7 +52,7 @@ class Database {
             });
             return volumeMap;
         } catch (error) {
-            console.error("Error loading guild volumes:", error);
+            log('ERROR', `Error loading guild volumes: ${error.message}`);
             return new Map();
         }
     }
@@ -79,7 +73,7 @@ class Database {
             }
             return true;
         } catch (error) {
-            console.error("Error saving guild volumes:", error);
+            log('ERROR', `Error saving guild volumes: ${error.message}`);
             return false;
         }
     }
@@ -99,7 +93,7 @@ class Database {
             });
             return result;
         } catch (error) {
-            console.error("Error loading 24/7 data:", error);
+            log('ERROR', `Error loading 24/7 data: ${error.message}`);
             return {};
         }
     }
@@ -126,7 +120,7 @@ class Database {
             }
             return true;
         } catch (error) {
-            console.error("Error saving 24/7 data:", error);
+            log('ERROR', `Error saving 24/7 data: ${error.message}`);
             return false;
         }
     }
@@ -148,7 +142,7 @@ class Database {
             );
             return { success: true, message: "24/7 enabled" };
         } catch (error) {
-            console.error("Error enabling 24/7:", error);
+            log('ERROR', `Error enabling 24/7: ${error.message}`);
             return { success: false, message: `Database error: ${error.message}` };
         }
     }
@@ -168,7 +162,7 @@ class Database {
             );
             return { success: true, message: "24/7 disabled" };
         } catch (error) {
-            console.error("Error disabling 24/7:", error);
+            log('ERROR', `Error disabling 24/7: ${error.message}`);
             return { success: false, message: `Database error: ${error.message}` };
         }
     }
@@ -188,7 +182,7 @@ class Database {
             });
             return result;
         } catch (error) {
-            console.error("Error loading servers data:", error);
+            log('ERROR', `Error loading servers data: ${error.message}`);
             return {};
         }
     }
@@ -215,7 +209,7 @@ class Database {
             }
             return true;
         } catch (error) {
-            console.error("Error saving servers data:", error);
+            log('ERROR', `Error saving servers data: ${error.message}`);
             return false;
         }
     }
@@ -232,7 +226,7 @@ class Database {
             });
             return result;
         } catch (error) {
-            console.error("Error loading Spotify IDs:", error);
+            log('ERROR', `Error loading Spotify IDs: ${error.message}`);
             return {};
         }
     }
@@ -258,7 +252,7 @@ class Database {
             }
             return true;
         } catch (error) {
-            console.error("Error saving Spotify IDs:", error);
+            log('ERROR', `Error saving Spotify IDs: ${error.message}`);
             return false;
         }
     }
@@ -270,7 +264,7 @@ class Database {
             const doc = await collection.findOne({ discord_user_id: userId });
             return doc ? doc.spotify_id : null;
         } catch (error) {
-            console.error("Error getting Spotify ID:", error);
+            log('ERROR', `Error getting Spotify ID: ${error.message}`);
             return null;
         }
     }
@@ -291,7 +285,7 @@ class Database {
             );
             return true;
         } catch (error) {
-            console.error("Error setting Spotify ID:", error);
+            log('ERROR', `Error setting Spotify ID: ${error.message}`);
             return false;
         }
     }
@@ -305,7 +299,7 @@ class Database {
             });
             return true;
         } catch (error) {
-            console.error("Error cleaning up old servers:", error);
+            log('ERROR', `Error cleaning up old servers: ${error.message}`);
             return false;
         }
     }
@@ -320,7 +314,6 @@ class Database {
 
 			const existing = await collection.findOne({ botId: botSignature });
 			if (existing) {
-				console.log(`🆔 Bot ${botSignature} already has Cluster ID: ${existing.clusterId}`);
 				return existing.clusterId;
 			}
 
@@ -335,11 +328,11 @@ class Database {
 				lastSeen: new Date()
 			});
 			
-			console.log(`🆔 Assigned NEW Cluster ID: ${nextClusterId} for bot: ${botSignature}`);
+			log('DATABASE', `🆔 Assigned NEW Cluster ID: ${nextClusterId} for bot: ${botSignature}`);
 			return nextClusterId;
 			
 		} catch (error) {
-			console.error("❌ Cluster ID error:", error);
+			log('ERROR', `❌ Cluster ID error: ${error.message}`);
 			return 1;
 		}
 	}
@@ -348,9 +341,9 @@ class Database {
         try {
             await this.client.close();
             this.connected = false;
-            console.log("🔌 MongoDB connection closed");
+            log('DATABASE', "🔌 MongoDB connection closed");
         } catch (error) {
-            console.error("Error closing connection:", error);
+            log('ERROR', `Error closing connection: ${error.message}`);
         }
     }
 
@@ -447,7 +440,7 @@ class Database {
             
             return true;
         } catch (error) {
-            console.error('Error recording song play:', error);
+            log('ERROR', `Error recording song play: ${error.message}`);
             return false;
         }
     }
@@ -489,7 +482,7 @@ class Database {
                     : 0
             };
         } catch (error) {
-            console.error('Error fetching user stats:', error);
+            log('ERROR', `Error fetching user stats: ${error.message}`);
             return null;
         }
     }
@@ -515,7 +508,7 @@ class Database {
                 topPlays: allUsers[0]?.totalPlays || 0
             };
         } catch (error) {
-            console.error('Error getting user rank:', error);
+            log('ERROR', `Error getting user rank: ${error.message}`);
             return { rank: 999, totalUsers: 0 };
         }
     }
@@ -537,7 +530,7 @@ class Database {
                 lastUpdated: user.lastUpdated
             }));
         } catch (error) {
-            console.error('Error fetching leaderboard:', error);
+            log('ERROR', `Error fetching leaderboard: ${error.message}`);
             return [];
         }
     }
@@ -549,7 +542,7 @@ class Database {
             await collection.deleteOne({ discord_user_id: userId });
             return true;
         } catch (error) {
-            console.error('Error resetting user stats:', error);
+            log('ERROR', `Error resetting user stats: ${error.message}`);
             return false;
         }
     }
@@ -572,7 +565,7 @@ class Database {
             );
             return true;
         } catch (error) {
-            console.error('Error setting AFK:', error);
+            log('ERROR', `Error setting AFK: ${error.message}`);
             return false;
         }
     }
@@ -584,7 +577,7 @@ class Database {
             await collection.deleteOne({ discord_user_id: userId });
             return true;
         } catch (error) {
-            console.error('Error removing AFK:', error);
+            log('ERROR', `Error removing AFK: ${error.message}`);
             return false;
         }
     }
@@ -595,7 +588,7 @@ class Database {
             const collection = this.getPrefixedCollection('afk');
             return await collection.findOne({ discord_user_id: userId, active: true });
         } catch (error) {
-            console.error('Error getting AFK:', error);
+            log('ERROR', `Error getting AFK: ${error.message}`);
             return null;
         }
     }
@@ -611,7 +604,7 @@ class Database {
 			);
 			return true;
 		} catch (error) {
-			console.error('Error adding noprefix user:', error);
+			log('ERROR', `Error adding noprefix user: ${error.message}`);
 			return false;
 		}
 	}
@@ -623,7 +616,7 @@ class Database {
 			const result = await collection.deleteOne({ user_id: userId });
 			return result.deletedCount > 0;
 		} catch (error) {
-			console.error('Error removing noprefix user:', error);
+			log('ERROR', `Error removing noprefix user: ${error.message}`);
 			return false;
 		}
 	}
@@ -635,7 +628,7 @@ class Database {
 			const users = await collection.find({}).toArray();
 			return users.map(u => u.user_id);
 		} catch (error) {
-			console.error('Error getting noprefix users:', error);
+			log('ERROR', `Error getting noprefix users: ${error.message}`);
 			return [];
 		}
 	}
@@ -647,7 +640,7 @@ class Database {
 			const user = await collection.findOne({ user_id: userId });
 			return !!user;
 		} catch (error) {
-			console.error('Error checking noprefix user:', error);
+			log('ERROR', `Error checking noprefix user: ${error.message}`);
 			return false;
 		}
 	}
@@ -658,13 +651,12 @@ class Database {
 			const collection = this.getPrefixedCollection('settings');
 			const doc = await collection.findOne({ _id: 'noprefix_global' });
 			if (!doc) {
-
 				await collection.insertOne({ _id: 'noprefix_global', enabled: true });
 				return true;
 			}
 			return doc.enabled;
 		} catch (error) {
-			console.error('Error getting noprefix global enabled:', error);
+			log('ERROR', `Error getting noprefix global enabled: ${error.message}`);
 			return true;
 		}
 	}
@@ -680,7 +672,7 @@ class Database {
 			);
 			return true;
 		} catch (error) {
-			console.error('Error setting noprefix global enabled:', error);
+			log('ERROR', `Error setting noprefix global enabled: ${error.message}`);
 			return false;
 		}
 	}
@@ -691,7 +683,7 @@ class Database {
 		const collection = this.getPrefixedCollection('counting');
 		return await collection.findOne({ guild_id: guildId });
 	  } catch (error) {
-		console.error('Error getting counting config:', error);
+		log('ERROR', `Error getting counting config: ${error.message}`);
 		return null;
 	  }
 	}
@@ -718,7 +710,7 @@ class Database {
 		);
 		return true;
 	  } catch (error) {
-		console.error('Error setting counting channel:', error);
+		log('ERROR', `Error setting counting channel: ${error.message}`);
 		return false;
 	  }
 	}
@@ -733,7 +725,7 @@ class Database {
 		);
 		return true;
 	  } catch (error) {
-		console.error('Error disabling counting:', error);
+		log('ERROR', `Error disabling counting: ${error.message}`);
 		return false;
 	  }
 	}
@@ -748,7 +740,7 @@ class Database {
 		);
 		return true;
 	  } catch (error) {
-		console.error('Error setting toggle-reset:', error);
+		log('ERROR', `Error setting toggle-reset: ${error.message}`);
 		return false;
 	  }
 	}
@@ -769,7 +761,7 @@ class Database {
 		);
 		return true;
 	  } catch (error) {
-		console.error('Error setting counting start:', error);
+		log('ERROR', `Error setting counting start: ${error.message}`);
 		return false;
 	  }
 	}
@@ -790,7 +782,7 @@ class Database {
 		);
 		return true;
 	  } catch (error) {
-		console.error('Error updating counting:', error);
+		log('ERROR', `Error updating counting: ${error.message}`);
 		return false;
 	  }
 	}
@@ -811,7 +803,7 @@ class Database {
 		);
 		return true;
 	  } catch (error) {
-		console.error('Error resetting counting:', error);
+		log('ERROR', `Error resetting counting: ${error.message}`);
 		return false;
 	  }
 	}

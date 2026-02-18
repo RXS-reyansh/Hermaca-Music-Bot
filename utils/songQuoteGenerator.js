@@ -195,7 +195,6 @@ try {
         weight: '400'
     });
     
-    console.log('✅ Custom fonts loaded');
 } catch (error) {
     console.log('⚠️ Using default fonts (Poppins not found):', error.message);
 }
@@ -237,10 +236,8 @@ async function getSpotifyAccessToken() {
         spotifyAccessToken = data.access_token;
         tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000;
         
-        console.log('✅ Spotify access token obtained');
         return spotifyAccessToken;
     } catch (error) {
-        console.error('Error getting Spotify token:', error);
         return null;
     }
 }
@@ -376,7 +373,6 @@ function applyGrayscaleFilter(ctx, x, y, width, height) {
 
 async function createSongQuoteImage(track, text) {
     try {
-        console.log(`Generating aesthetic sidebar quote for: ${track.info.title} - ${track.info.author}`);
         
         // Get thumbnail
         let thumbnailUrl = null;
@@ -450,8 +446,6 @@ async function createSongQuoteImage(track, text) {
         // Create gradient colors
         const color1 = rgbToCss(vibrantColor.r, vibrantColor.g, vibrantColor.b);
         const color2 = rgbToCss(complementaryColor.r, complementaryColor.g, complementaryColor.b);
-        
-        console.log(`🎨 Extracted colors: ${color1} -> ${color2}`);
         
         // Create main canvas
         const width = 1200;
@@ -754,8 +748,7 @@ async function createSongQuoteImage(track, text) {
             year: 'numeric' 
         });
         ctx.fillText(dateStr, footerCenterX, footerY + 25);
-        
-        console.log('✅ Aesthetic sidebar quote image generated with dynamic colors');
+
         return canvas.toBuffer('image/png');
         
     } catch (error) {
