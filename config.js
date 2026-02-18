@@ -17,7 +17,6 @@ module.exports = {
             name: "Serenetia"
         }
 	],
-    // GitHub links
     githubProfile: 'https://github.com/RXS-reyansh',
     githubRepo: 'https://github.com/RXS-reyansh/Hermaca-Music-Bot',
     

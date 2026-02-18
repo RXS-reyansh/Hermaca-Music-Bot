@@ -1,15 +1,13 @@
 require("dotenv").config();
 const config = require("./config.js");
 
-// Your specified colors
 const colors = {
-    color1: '#FAF7F3', // Dark brown
-    color2: '#F0E4D3', // Gray
-    color3: '#DCC5B2', // Light peach
-    color4: '#D9A299'  // Cream
+    color1: '#FAF7F3',
+    color2: '#F0E4D3',
+    color3: '#DCC5B2',
+    color4: '#D9A299'
 };
 
-// Function to blend two hex colors
 function blendColors(hex1, hex2, ratio) {
     const r1 = parseInt(hex1.slice(1, 3), 16);
     const g1 = parseInt(hex1.slice(3, 5), 16);
@@ -26,7 +24,6 @@ function blendColors(hex1, hex2, ratio) {
     return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
 }
 
-// Function to convert hex to ANSI true color
 function hexToAnsi(hex) {
     const r = parseInt(hex.slice(1, 3), 16);
     const g = parseInt(hex.slice(3, 5), 16);
@@ -37,20 +34,18 @@ function hexToAnsi(hex) {
 const reset = '\x1b[0m';
 const bright = '\x1b[1m';
 
-// Create gradient colors for 8 lines
 const gradientColors = [
-    colors.color1,                                         // Line 1: #452829
-    blendColors(colors.color1, colors.color2, 0.33),      // Line 2: blend 33% to color2
-    blendColors(colors.color1, colors.color2, 0.66),      // Line 3: blend 66% to color2
-    colors.color2,                                         // Line 4: #57595B
-    blendColors(colors.color2, colors.color3, 0.5),        // Line 5: blend 50% to color3
-    colors.color3,                                         // Line 6: #E8D1C5
-    blendColors(colors.color3, colors.color4, 0.5),        // Line 7: blend 50% to color4
-    colors.color4                                          // Line 8: #F3E8DF
+    colors.color1,
+    blendColors(colors.color1, colors.color2, 0.33),
+    blendColors(colors.color1, colors.color2, 0.66),
+    colors.color2,
+    blendColors(colors.color2, colors.color3, 0.5),
+    colors.color3,
+    blendColors(colors.color3, colors.color4, 0.5),
+    colors.color4
 ];
 
-// ASCII Art at startup with gradient colors
-console.log('─'.repeat(60));
+console.log('─'.repeat(120));
 console.log(`${hexToAnsi(gradientColors[0])}${bright} /$$   /$$                                                                ${reset}`);
 console.log(`${hexToAnsi(gradientColors[1])}| $$  | $$                                                                ${reset}`);
 console.log(`${hexToAnsi(gradientColors[2])}| $$  | $$  /$$$$$$   /$$$$$$  /$$$$$$/$$$$   /$$$$$$   /$$$$$$$  /$$$$$$ ${reset}`);
@@ -59,9 +54,7 @@ console.log(`${hexToAnsi(gradientColors[4])}| $$__  $$| $$$$$$$$| $$  \\__/| $$ 
 console.log(`${hexToAnsi(gradientColors[5])}| $$  | $$| $$_____/| $$      | $$ | $$ | $$ /$$__  $$| $$       /$$__  $${reset}`);
 console.log(`${hexToAnsi(gradientColors[6])}| $$  | $$|  $$$$$$$| $$      | $$ | $$ | $$|  $$$$$$$|  $$$$$$$|  $$$$$$$${reset}`);
 console.log(`${hexToAnsi(gradientColors[7])}|__/  |__/ \\_______/|__/      |__/ |__/ |__/ \\_______/ \\_______/ \\_______/${reset}`);
-console.log('─'.repeat(60));
 
-// Continue with your existing code...
 const { log, line, setBotReady } = require('./logger.js');
 
 const ownerId = config.ownerId;
