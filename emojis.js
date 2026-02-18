@@ -6,7 +6,7 @@ module.exports = {
     music: "<a:blackstar:1457639037803434037>",
     info: "<a:info:1471741510100713543>",
     time: "<:time:1350022772067274783>",
-    loading: "<a:loading:1471742711412293632>",
+    loading: "<a:loading:1473672544379867309>",
 	blackbutterfly: "<a:Black_Butterfly:1471741362775785533>",
 	greenbutterfly: "<a:Green_Butterfly:1472208103914344521>",
 	bluebutterfly: "<a:Blue_Butterfly:1472208173644382249>",

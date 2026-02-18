@@ -4185,65 +4185,51 @@ async function handlePrefixCommand(message, cmd, args) {
 			}
 			
 			case 'emoji': {
-				if (!args[0]) {
-					return messages.error(message.channel, "Please provide an emoji name, ID, or markdown.");
+				const input = args.join(' ');
+				if (!input) {
+					return messages.error(message.channel, "Please provide emoji identifiers.");
 				}
+				const tokens = input.split(/\s+/);
+				const partsPerToken = tokens.map(token => token.split('/$/'));
+				const resolvedGroups = [];
+				let anyInvalid = false;
 
-				const identifier = args.join(' ');
-				let emoji = null;
-				const customEmojiRegex = /^<a?:\w+:(\d+)>$/;
-				const match = identifier.match(customEmojiRegex);
-				let emojiId = null;
-
-				if (match) {
-					emojiId = match[1];
-				} else if (/^\d+$/.test(identifier)) {
-					emojiId = identifier;
-				}
-				if (emojiId) {
-					emoji = client.emojis.cache.get(emojiId);
-					if (!emoji) {
-						for (const guild of client.guilds.cache.values()) {
-							try {
-								const fetched = await guild.emojis.fetch(emojiId).catch(() => null);
-								if (fetched) {
-									emoji = fetched;
-									client.emojis.cache.set(emojiId, fetched);
-									break;
-								}
-							} catch {
-							}
+				for (const group of partsPerToken) {
+					const resolvedInGroup = [];
+					for (const ident of group) {
+						const emoji = await resolveEmoji(client, ident, message.guild);
+						if (emoji) {
+							resolvedInGroup.push(emoji.toString());
+						} else {
+							anyInvalid = true;
 						}
 					}
-				} else {
-					const nameLower = identifier.toLowerCase();
-					if (message.guild) {
-						emoji = message.guild.emojis.cache.find(e => e.name.toLowerCase() === nameLower);
-					}
-					if (!emoji) {
-						emoji = client.emojis.cache.find(e => e.name.toLowerCase() === nameLower);
-					}
+					resolvedGroups.push(resolvedInGroup.join(''));
 				}
-				if (!emoji) {
-					return messages.error(message.channel, "Emoji not found! Make sure the bot is in the same server as the emoji.");
+				const finalString = resolvedGroups.join(' ').trim();
+
+				if (!finalString && anyInvalid) {
+					return messages.error(message.channel, "All provided emoji identifiers were invalid!");
 				}
 				try {
 					await message.delete();
-				} catch {
-				}
-				const emojiString = emoji.toString();
-
-				if (message.reference?.messageId) {
-					try {
-						const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
-						await repliedMessage.reply(emojiString);
-					} catch {
-						await message.channel.send(emojiString);
+				} catch {}
+				if (finalString) {
+					if (message.reference?.messageId) {
+						try {
+							const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+							await repliedMessage.reply(finalString);
+						} catch {
+							await message.channel.send(finalString);
+						}
+					} else {
+						await message.channel.send(finalString);
 					}
-				} else {
-					await message.channel.send(emojiString);
 				}
-
+				if (anyInvalid) {
+					const errorMsg = await messages.error(message.channel, "Any one of the emoji IDs were invalid!");
+					setTimeout(() => errorMsg.delete().catch(() => {}), 5000);
+				}
 				break;
 			}
 			
@@ -4466,6 +4452,7 @@ async function handlePrefixCommand(message, cmd, args) {
 			}
 			
 			case 'purge': {
+				const isOwner = message.author.id === ownerId;
 				if (!args[0]) {
 					return messages.error(message.channel, `${emojis.error} | Please specify the number of messages to delete or \`all\`.`);
 				}
@@ -4474,8 +4461,8 @@ async function handlePrefixCommand(message, cmd, args) {
 				const hasAdmin = message.member.permissions.has('Administrator');
 				
 				if (args[0].toLowerCase() === 'all') {
-					if (!message.member.permissions.has('Administrator')) {
-						return messages.error(message.channel, `${emojis.error} | Only administrators can purge **all** messages.`);
+					if (!isOwner && !hasAdmin) {
+						return messages.error(message.channel, `Only administrators can purge **all** messages.`);
 					}
 					await message.delete().catch(() => {});
 					
@@ -4553,7 +4540,7 @@ async function handlePrefixCommand(message, cmd, args) {
 					return messages.error(message.channel, `${emojis.error} | Please provide a valid number of messages to delete.`);
 				}
 
-				if (!hasManageMessages && !hasAdmin) {
+				if (!isOwner && !hasManageMessages && !hasAdmin) {
 					return messages.error(message.channel, `${emojis.error} | You need \`Manage Messages\` or \`Administrator\` permission to purge messages.`);
 				}
 
@@ -4593,26 +4580,33 @@ async function handlePrefixCommand(message, cmd, args) {
 					.replace(/\\n/g, '\n')
 					.replace(/\u0000/g, '\\n');
 
-				const emojiRegex = /-emoji-(\S+)/g;
-				const identifiers = new Set();
+				let anyInvalidEmoji = false;
+				const emojiRegex = /-emoji-([^\s]+)/g;
+				const placeholders = [];
 				let match;
 				while ((match = emojiRegex.exec(processed)) !== null) {
-					identifiers.add(match[1]);
+					placeholders.push(match[0]);
 				}
 
-				if (identifiers.size > 0) {
+				if (placeholders.length > 0) {
 					const emojiMap = new Map();
-					await Promise.all([...identifiers].map(async (id) => {
-						const emoji = await resolveEmoji(client, id, message.guild);
-						emojiMap.set(id, emoji ? emoji.toString() : null);
+					await Promise.all(placeholders.map(async (fullMatch) => {
+						const inner = fullMatch.slice(8);
+						const parts = inner.split('/$/');
+						const resolvedParts = [];
+						for (const part of parts) {
+							const emoji = await resolveEmoji(client, part, message.guild);
+							if (emoji) {
+								resolvedParts.push(emoji.toString());
+							} else {
+								anyInvalidEmoji = true;
+							}
+						}
+						emojiMap.set(fullMatch, resolvedParts.join(''));
 					}));
 
-					processed = processed.replace(emojiRegex, (match, identifier) => {
-						const replacement = emojiMap.get(identifier);
-						return replacement !== null ? replacement : match;
-					});
+					processed = processed.replace(emojiRegex, (match) => emojiMap.get(match) || '');
 				}
-
 				let files = [];
 				if (message.attachments.size > 0) {
 					files = await Promise.all(
@@ -4623,7 +4617,6 @@ async function handlePrefixCommand(message, cmd, args) {
 						})
 					);
 				}
-
 				await message.delete().catch(() => {});
 
 				const sendOptions = { content: processed || null, files: files.length > 0 ? files : undefined };
@@ -4637,6 +4630,10 @@ async function handlePrefixCommand(message, cmd, args) {
 					}
 				} else {
 					await message.channel.send(sendOptions);
+				}
+				if (anyInvalidEmoji) {
+					const errorMsg = await messages.error(message.channel, "Any one of the emoji IDs were invalid!");
+					setTimeout(() => errorMsg.delete().catch(() => {}), 5000);
 				}
 				break;
 			}
@@ -5087,7 +5084,8 @@ async function handlePrefixCommand(message, cmd, args) {
 			
 			case 'setavatar':
 			case 'setav': {
-				if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+				const isOwner = message.author.id === ownerId;
+				if (!isOwner && !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
 					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
 				}
 				if (args[0] && args[0].toLowerCase() === 'reset') {
@@ -5143,7 +5141,8 @@ async function handlePrefixCommand(message, cmd, args) {
 
 			case 'setbanner':
 			case 'setbn': {
-				if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+				const isOwner = message.author.id === ownerId;
+				if (!isOwner && !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
 					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
 				}
 				if (args[0] && args[0].toLowerCase() === 'reset') {
@@ -5200,7 +5199,8 @@ async function handlePrefixCommand(message, cmd, args) {
 			}
 
 			case 'setname': {
-				if (!message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+				const isOwner = message.author.id === ownerId;
+				if (!isOwner && !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
 					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
 				}
 				if (args[0] && args[0].toLowerCase() === 'reset') {
@@ -5256,7 +5256,8 @@ async function handlePrefixCommand(message, cmd, args) {
 			
 			case 'count': {
 				const subCmd = args[0] ? args[0].toLowerCase() : null;
-				const isAdmin = message.member.permissions.has(PermissionsBitField.Flags.Administrator);
+				const isOwner = message.author.id === ownerId;
+				const isAdmin = isOwner || message.member.permissions.has(PermissionsBitField.Flags.Administrator);
 				if (!subCmd) {
 					return messages.info(
 						message.channel, 
