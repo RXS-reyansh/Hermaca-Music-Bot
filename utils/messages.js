@@ -30,9 +30,9 @@ function buildMainHelpEmbed(guild, user) {
     `Hey ${user} ${emojis.hearts1}`,
     `Prefix: ${config.prefix}`,
     `Total commands: **${totalCommands}**`,
-    '',
+    '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
     ...categoryLines,
-    '',
+    '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
     `[Invite Hermaca](https://discord.com/oauth2/authorize?client_id=${config.clientId}&permissions=8&integration_type=0&scope=applications.commands+bot)`,
     `[Support Server](https://discord.gg/nVfAGH9G67)`,
     '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───'
