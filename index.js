@@ -101,7 +101,8 @@ const prefixCommands = [
     'play', 'p', 'pause', 'resume', 'skip', 'stop', 's', 'lyrics', 'queue', 'q',
     'nowplaying', 'np', 'volume', 'vol', 'servervolume', 'filter', 'shuffle',
     'loop', 'move', 'add', 'remove', 'clear', 'status', 'ping', 'help',
-    'setspotify', 'playspotify', 'join', 'leave', 'rejoin', 'shift', 'disconnect', 'song-quote', 'quote',
+    'setspotify', 'playspotify', 'join', 'leave', 'rejoin', 'shift', 'disconnect', 
+    'mute', 'unmute', 'deafen', 'undeafen', 'song-quote', 'quote',
     'mystats', 'leaderboard', 'resetstats', 'stats', 'afk', 'react', 'emoji',
     'avatar', 'av', 'banner', 'bn', 'purge', 'say', 'reveal', '24/7', 'doakes',
     'emma-heart', 'emma-heart1', 'emma-kiss', 'emma-hii', 'emma-worried',
@@ -775,7 +776,39 @@ const slashCommands = [
 			option.setName('user')
 				.setDescription('User to disconnect (leave empty for yourself)')
 				.setRequired(false)),
-		
+	
+	new SlashCommandBuilder()
+    .setName('mute')
+    .setDescription('Mute a user in voice channel')
+    .addUserOption(option =>
+        option.setName('user')
+            .setDescription('User to mute (leave empty for yourself)')
+            .setRequired(false)),
+
+	new SlashCommandBuilder()
+		.setName('unmute')
+		.setDescription('Unmute a user in voice channel')
+		.addUserOption(option =>
+			option.setName('user')
+				.setDescription('User to unmute (leave empty for yourself)')
+				.setRequired(false)),
+
+	new SlashCommandBuilder()
+		.setName('deafen')
+		.setDescription('Deafen a user in voice channel')
+		.addUserOption(option =>
+			option.setName('user')
+				.setDescription('User to deafen (leave empty for yourself)')
+				.setRequired(false)),
+
+	new SlashCommandBuilder()
+		.setName('undeafen')
+		.setDescription('Undeafen a user in voice channel')
+		.addUserOption(option =>
+			option.setName('user')
+				.setDescription('User to undeafen (leave empty for yourself)')
+				.setRequired(false)),
+	
 	new SlashCommandBuilder()
         .setName('help')
         .setDescription('Show all commands'),
@@ -1112,8 +1145,8 @@ client.on(Events.InteractionCreate, async interaction => {
     const { commandName, options, guild, member } = interaction;
 
     const voiceCommands = ['play', 'playspotify', 'pause', 'resume', 'skip', 'stop', 'queue', 
-                         'nowplaying', 'volume', 'servervolume', 'shuffle', 'loop', 'remove', 
-                         'clear', 'status', 'filter', 'move', 'add'];
+                     'nowplaying', 'volume', 'servervolume', 'shuffle', 'loop', 'remove', 
+                     'clear', 'status', 'filter', 'move', 'add', 'mute', 'unmute', 'deafen', 'undeafen'];
     
     if (voiceCommands.includes(commandName)) {
         if (!member.voice.channel) {
@@ -1835,6 +1868,30 @@ client.on(Events.InteractionCreate, async interaction => {
 			case 'disconnect': {
 				const targetUser = options.getUser('user') || interaction.user;
 				await handleDisconnect(interaction, true, targetUser);
+				break;
+			}
+			
+			case 'mute': {
+				const targetUser = options.getUser('user') || interaction.user;
+				await handleMute(interaction, true, targetUser);
+				break;
+			}
+
+			case 'unmute': {
+				const targetUser = options.getUser('user') || interaction.user;
+				await handleUnmute(interaction, true, targetUser);
+				break;
+			}
+
+			case 'deafen': {
+				const targetUser = options.getUser('user') || interaction.user;
+				await handleDeafen(interaction, true, targetUser);
+				break;
+			}
+
+			case 'undeafen': {
+				const targetUser = options.getUser('user') || interaction.user;
+				await handleUndeafen(interaction, true, targetUser);
 				break;
 			}
 
@@ -3907,6 +3964,166 @@ async function handleDisconnect(context, isInteraction, targetUser) {
     }
 }
 
+async function handleMute(context, isInteraction, targetUser) {
+    const guild = isInteraction ? context.guild : context.guild;
+    const channel = isInteraction ? context.channel : context.channel;
+    const commandUserId = isInteraction ? context.user.id : context.author.id;
+
+    const hasPermission = commandUserId === ownerId ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.MuteMembers));
+    
+    if (!hasPermission) {
+        return sendResponse(context, messages.error(channel, "You need `Mute Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
+    }
+
+    let targetMember;
+    try {
+        targetMember = await guild.members.fetch(targetUser.id);
+    } catch {
+        return sendResponse(context, messages.error(channel, "Could not find that user in this server."), isInteraction);
+    }
+
+    if (!targetMember.voice.channel) {
+        if (targetUser.id === commandUserId) {
+            return sendResponse(context, messages.error(channel, "You are not in a voice channel!"), isInteraction);
+        } else {
+            return sendResponse(context, messages.error(channel, "The user is not in any voice channel!"), isInteraction);
+        }
+    }
+
+    try {
+        await targetMember.voice.setMute(true);
+        const successText = targetUser.id === commandUserId
+            ? `Successfully muted you in ${targetMember.voice.channel}!`
+            : `Successfully muted ${targetMember} in ${targetMember.voice.channel}!`;
+        return sendResponse(context, messages.success(channel, successText), isInteraction);
+    } catch (error) {
+        log('ERROR', `Mute error: ${error.message}`);
+        return sendResponse(context, messages.error(channel, `Failed to mute: ${error.message}`), isInteraction);
+    }
+}
+
+async function handleUnmute(context, isInteraction, targetUser) {
+    const guild = isInteraction ? context.guild : context.guild;
+    const channel = isInteraction ? context.channel : context.channel;
+    const commandUserId = isInteraction ? context.user.id : context.author.id;
+
+    const hasPermission = commandUserId === ownerId ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.MuteMembers));
+    
+    if (!hasPermission) {
+        return sendResponse(context, messages.error(channel, "You need `Mute Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
+    }
+
+    let targetMember;
+    try {
+        targetMember = await guild.members.fetch(targetUser.id);
+    } catch {
+        return sendResponse(context, messages.error(channel, "Could not find that user in this server."), isInteraction);
+    }
+
+    if (!targetMember.voice.channel) {
+        if (targetUser.id === commandUserId) {
+            return sendResponse(context, messages.error(channel, "You are not in a voice channel!"), isInteraction);
+        } else {
+            return sendResponse(context, messages.error(channel, "The user is not in any voice channel!"), isInteraction);
+        }
+    }
+
+    try {
+        await targetMember.voice.setMute(false);
+        const successText = targetUser.id === commandUserId
+            ? `Successfully unmuted you in ${targetMember.voice.channel}!`
+            : `Successfully unmuted ${targetMember} in ${targetMember.voice.channel}!`;
+        return sendResponse(context, messages.success(channel, successText), isInteraction);
+    } catch (error) {
+        log('ERROR', `Unmute error: ${error.message}`);
+        return sendResponse(context, messages.error(channel, `Failed to unmute: ${error.message}`), isInteraction);
+    }
+}
+
+async function handleDeafen(context, isInteraction, targetUser) {
+    const guild = isInteraction ? context.guild : context.guild;
+    const channel = isInteraction ? context.channel : context.channel;
+    const commandUserId = isInteraction ? context.user.id : context.author.id;
+
+    const hasPermission = commandUserId === ownerId ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.DeafenMembers));
+    
+    if (!hasPermission) {
+        return sendResponse(context, messages.error(channel, "You need `Deafen Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
+    }
+
+    let targetMember;
+    try {
+        targetMember = await guild.members.fetch(targetUser.id);
+    } catch {
+        return sendResponse(context, messages.error(channel, "Could not find that user in this server."), isInteraction);
+    }
+
+    if (!targetMember.voice.channel) {
+        if (targetUser.id === commandUserId) {
+            return sendResponse(context, messages.error(channel, "You are not in a voice channel!"), isInteraction);
+        } else {
+            return sendResponse(context, messages.error(channel, "The user is not in any voice channel!"), isInteraction);
+        }
+    }
+
+    try {
+        await targetMember.voice.setDeaf(true);
+        const successText = targetUser.id === commandUserId
+            ? `Successfully deafened you in ${targetMember.voice.channel}!`
+            : `Successfully deafened ${targetMember} in ${targetMember.voice.channel}!`;
+        return sendResponse(context, messages.success(channel, successText), isInteraction);
+    } catch (error) {
+        log('ERROR', `Deafen error: ${error.message}`);
+        return sendResponse(context, messages.error(channel, `Failed to deafen: ${error.message}`), isInteraction);
+    }
+}
+
+async function handleUndeafen(context, isInteraction, targetUser) {
+    const guild = isInteraction ? context.guild : context.guild;
+    const channel = isInteraction ? context.channel : context.channel;
+    const commandUserId = isInteraction ? context.user.id : context.author.id;
+
+    const hasPermission = commandUserId === ownerId ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.DeafenMembers));
+    
+    if (!hasPermission) {
+        return sendResponse(context, messages.error(channel, "You need `Deafen Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
+    }
+
+    let targetMember;
+    try {
+        targetMember = await guild.members.fetch(targetUser.id);
+    } catch {
+        return sendResponse(context, messages.error(channel, "Could not find that user in this server."), isInteraction);
+    }
+
+    if (!targetMember.voice.channel) {
+        if (targetUser.id === commandUserId) {
+            return sendResponse(context, messages.error(channel, "You are not in a voice channel!"), isInteraction);
+        } else {
+            return sendResponse(context, messages.error(channel, "The user is not in any voice channel!"), isInteraction);
+        }
+    }
+
+    try {
+        await targetMember.voice.setDeaf(false);
+        const successText = targetUser.id === commandUserId
+            ? `Successfully undeafened you in ${targetMember.voice.channel}!`
+            : `Successfully undeafened ${targetMember} in ${targetMember.voice.channel}!`;
+        return sendResponse(context, messages.success(channel, successText), isInteraction);
+    } catch (error) {
+        log('ERROR', `Undeafen error: ${error.message}`);
+        return sendResponse(context, messages.error(channel, `Failed to undeafen: ${error.message}`), isInteraction);
+    }
+}
+
 async function sendResponse(context, content, isInteraction = false) {
     try {
 
@@ -4190,6 +4407,66 @@ async function handlePrefixCommand(message, cmd, args) {
 					}
 				}
 				await handleDisconnect(message, false, targetUser);
+				break;
+			}
+			
+			case 'mute': {
+				let targetUser = message.author;
+				if (args.length > 0) {
+					const mention = args[0].match(/^<@!?(\d+)>$/);
+					const userId = mention ? mention[1] : args[0];
+					try {
+						targetUser = await client.users.fetch(userId, { force: false });
+					} catch {
+
+					}
+				}
+				await handleMute(message, false, targetUser);
+				break;
+			}
+
+			case 'unmute': {
+				let targetUser = message.author;
+				if (args.length > 0) {
+					const mention = args[0].match(/^<@!?(\d+)>$/);
+					const userId = mention ? mention[1] : args[0];
+					try {
+						targetUser = await client.users.fetch(userId, { force: false });
+					} catch {
+
+					}
+				}
+				await handleUnmute(message, false, targetUser);
+				break;
+			}
+
+			case 'deafen': {
+				let targetUser = message.author;
+				if (args.length > 0) {
+					const mention = args[0].match(/^<@!?(\d+)>$/);
+					const userId = mention ? mention[1] : args[0];
+					try {
+						targetUser = await client.users.fetch(userId, { force: false });
+					} catch {
+
+					}
+				}
+				await handleDeafen(message, false, targetUser);
+				break;
+			}
+
+			case 'undeafen': {
+				let targetUser = message.author;
+				if (args.length > 0) {
+					const mention = args[0].match(/^<@!?(\d+)>$/);
+					const userId = mention ? mention[1] : args[0];
+					try {
+						targetUser = await client.users.fetch(userId, { force: false });
+					} catch {
+
+					}
+				}
+				await handleUndeafen(message, false, targetUser);
 				break;
 			}
 			
@@ -6429,9 +6706,9 @@ client.on("messageCreate", async (message) => {
             const args = message.content.trim().split(/ +/);
             const cmdName = args.shift().toLowerCase();
             if (validCommands.has(cmdName)) {
-                const voiceCommands = ['play', 'p', 'playspotify', 'pause', 'resume', 'skip', 'stop', 's',
-                                     'queue', 'q', 'nowplaying', 'np', 'volume', 'vol', 'servervolume',
-                                     'shuffle', 'loop', 'remove', 'clear', 'status', 'filter', 'move', 'add'];
+                const voiceCommands = ['play', 'playspotify', 'pause', 'resume', 'skip', 'stop', 'queue', 
+                     'nowplaying', 'volume', 'servervolume', 'shuffle', 'loop', 'remove', 
+                     'clear', 'status', 'filter', 'move', 'add', 'mute', 'unmute', 'deafen', 'undeafen'];
                 
                 if (voiceCommands.includes(cmdName) && !message.member.voice.channel) {
                     await message.reply(`${emojis.error} | You must be in a voice channel!`);

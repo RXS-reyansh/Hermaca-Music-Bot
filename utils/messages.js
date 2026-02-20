@@ -6,26 +6,36 @@ const categories = {
   music: ['play', 'pause', 'resume', 'skip', 'stop', 'lyrics', 'queue', 'clear', 'filter', 'shuffle', 'loop', 'move', 'add', 'remove', 'volume', 'servervolume', 'nowplaying', 'status', '24/7', 'song-quote'],
   stats: ['stats', 'mystats', 'leaderboard', 'resetmystats'],
   spotify: ['setspotify', 'playspotify'],
-  vc: ['join', 'leave', 'rejoin', 'shift', 'disconnect'],
+  vcControls: ['join', 'leave', 'rejoin', 'shift', 'disconnect', 'mute', 'unmute', 'deafen', 'undeafen'], // Changed to vcControls
   utility: ['afk', 'avatar', 'banner', 'react', 'emoji', 'steal', 'say', 'purge', 'count'],
   customisation: ['setavatar', 'setbanner', 'setname', 'setbio']
 };
 
 function buildMainHelpEmbed(guild, user) {
   const totalCommands = Object.values(categories).flat().length;
+  
+  // Build description lines with special handling for vcControls
+  const categoryLines = [];
+  for (const [key, cmds] of Object.entries(categories)) {
+    let categoryName;
+    if (key === 'vcControls') {
+      categoryName = 'VC Controls'; // Display as "VC Controls"
+    } else {
+      categoryName = key.charAt(0).toUpperCase() + key.slice(1);
+    }
+    categoryLines.push(`${emojis.whitebutterfly} | **${categoryName}**`);
+  }
+
   const description = [
     `Hey ${user} ${emojis.hearts1}`,
     `Prefix: ${config.prefix}`,
     `Total commands: **${totalCommands}**`,
-	'─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
-    ...Object.entries(categories).map(([key, cmds]) => {
-      const categoryName = key.charAt(0).toUpperCase() + key.slice(1);
-      return `${emojis.whitebutterfly} | **${categoryName}**`;
-    }),
-    '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
+    '',
+    ...categoryLines,
+    '',
     `[Invite Hermaca](https://discord.com/oauth2/authorize?client_id=${config.clientId}&permissions=8&integration_type=0&scope=applications.commands+bot)`,
     `[Support Server](https://discord.gg/nVfAGH9G67)`,
-	'─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───'
+    '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───'
   ].join('\n');
 
   const embed = new EmbedBuilder()
@@ -60,7 +70,7 @@ function getHelpActionRows(currentCategory = null) {
   const homeButton = new ButtonBuilder()
     .setCustomId('help_home')
     .setLabel('Home')
-	.setEmoji(emojis.chemtrails_grey)
+    .setEmoji(emojis.chemtrails_grey)
     .setStyle(ButtonStyle.Secondary);
 
   const row1 = new ActionRowBuilder().addComponents(homeButton);
@@ -86,7 +96,7 @@ function getHelpActionRows(currentCategory = null) {
       },
       { 
         label: 'VC Controls', 
-        value: 'vc', 
+        value: 'vcControls', // Changed to match categories key
         emoji: emojis.greensparkles 
       },
       { 
