@@ -1,7 +1,119 @@
-const { EmbedBuilder } = require('discord.js');
 const emojis = require('../emojis.js');
 const config = require('../config.js');
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder } = require('discord.js');
+
+const categories = {
+  music: ['play', 'pause', 'resume', 'skip', 'stop', 'lyrics', 'queue', 'clear', 'filter', 'shuffle', 'loop', 'move', 'add', 'remove', 'volume', 'servervolume', 'nowplaying', 'status', '24/7', 'song-quote'],
+  stats: ['stats', 'mystats', 'leaderboard', 'resetmystats'],
+  spotify: ['setspotify', 'playspotify'],
+  vc: ['join', 'leave', 'rejoin', 'shift', 'disconnect'],
+  utility: ['afk', 'avatar', 'banner', 'react', 'emoji', 'steal', 'say', 'purge', 'count'],
+  customisation: ['setavatar', 'setbanner', 'setname', 'setbio']
+};
+
+function buildMainHelpEmbed(guild, user) {
+  const totalCommands = Object.values(categories).flat().length;
+  const description = [
+    `Hey ${user} ${emojis.hearts1}`,
+    `Prefix: ${config.prefix}`,
+    `Total commands: **${totalCommands}**`,
+	'─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
+    ...Object.entries(categories).map(([key, cmds]) => {
+      const categoryName = key.charAt(0).toUpperCase() + key.slice(1);
+      return `${emojis.whitebutterfly} | **${categoryName}**`;
+    }),
+    '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
+    `[Invite Hermaca](https://discord.com/oauth2/authorize?client_id=${config.clientId}&permissions=8&integration_type=0&scope=applications.commands+bot)`,
+    `[Support Server](https://discord.gg/nVfAGH9G67)`,
+	'─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───'
+  ].join('\n');
+
+  const embed = new EmbedBuilder()
+    .setColor(config.embedColor)
+    .setAuthor({ 
+      name: guild.name, 
+      iconURL: guild.iconURL() || undefined 
+    })
+    .setTitle(`${emojis.info} Help Menu`)
+    .setDescription(description)
+    .setImage("https://i.ibb.co/gLM9bMf9/standard.gif")
+    .setFooter({ text: `Select a category from the dropdown below!` });
+
+  return embed;
+}
+
+function buildCategoryEmbed(guild, categoryKey, categoryName, commands, user) {
+  const embed = new EmbedBuilder()
+    .setColor(config.embedColor)
+    .setAuthor({ 
+      name: `${guild.name}`, 
+      iconURL: guild.iconURL() || undefined 
+    })
+    .setTitle(`${emojis.blackcross} ${categoryName} Commands`)
+    .setDescription(commands.map(cmd => `\`${cmd}\``).join(', '))
+    .setImage("https://i.ibb.co/gLM9bMf9/standard.gif")
+    .setFooter({ text: `Use ${config.prefix}help <command-name> to know more about the command!` });
+  return embed;
+}
+
+function getHelpActionRows(currentCategory = null) {
+  const homeButton = new ButtonBuilder()
+    .setCustomId('help_home')
+    .setLabel('Home')
+	.setEmoji(emojis.chemtrails_grey)
+    .setStyle(ButtonStyle.Secondary);
+
+  const row1 = new ActionRowBuilder().addComponents(homeButton);
+
+  const selectMenu = new StringSelectMenuBuilder()
+    .setCustomId('help_category')
+    .setPlaceholder('> Choose a category')
+    .addOptions([
+      { 
+        label: 'Music', 
+        value: 'music', 
+        emoji: emojis.greensparkles
+      },
+      { 
+        label: 'Stats', 
+        value: 'stats', 
+        emoji: emojis.greensparkles 
+      },
+      { 
+        label: 'Spotify', 
+        value: 'spotify', 
+        emoji: emojis.greensparkles 
+      },
+      { 
+        label: 'VC Controls', 
+        value: 'vc', 
+        emoji: emojis.greensparkles 
+      },
+      { 
+        label: 'Utility', 
+        value: 'utility', 
+        emoji: emojis.greensparkles 
+      },
+      { 
+        label: 'Customisation', 
+        value: 'customisation', 
+        emoji: emojis.greensparkles 
+      }
+    ]);
+
+  if (currentCategory) {
+    const options = selectMenu.options;
+    for (let i = 0; i < options.length; i++) {
+      if (options[i].data.value === currentCategory) {
+        options[i].data.default = true;
+        break;
+      }
+    }
+  }
+
+  const row2 = new ActionRowBuilder().addComponents(selectMenu);
+  return [row1, row2];
+}
 
 function formatDuration(ms) {
     if (!ms || ms <= 0 || ms === 'Infinity') return 'LIVE';
@@ -137,9 +249,9 @@ module.exports = {
             embed.setThumbnail(track.info.thumbnail);
         }
         embed.addFields([
-            { name: 'Artist', value: `${emojis.blackheart} ${track.info.author}`, inline: true },
-            { name: 'Duration', value: `${emojis.blackheart} ${getDurationString(track)}`, inline: true },
-            { name: 'Position', value: `${emojis.blackheart} #${position}`, inline: true }
+            { name: 'Artist', value: `${emojis.hearts} ${track.info.author}`, inline: true },
+            { name: 'Duration', value: `${emojis.hearts} ${getDurationString(track)}`, inline: true },
+            { name: 'Position', value: `${emojis.hearts} #${position}`, inline: true }
         ]);
         return channel.send({ embeds: [embed] });
     },
@@ -1324,5 +1436,9 @@ sendPlaylistSelector: async (context, playlists, authorId, client, spotifyUserna
 		});
 		
 		return interaction.editReply({ embeds: [embed] });
-	}
+	},
+	buildMainHelpEmbed,
+	buildCategoryEmbed,
+	getHelpActionRows,
+	categories
 };

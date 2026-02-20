@@ -101,12 +101,12 @@ const prefixCommands = [
     'play', 'p', 'pause', 'resume', 'skip', 'stop', 's', 'lyrics', 'queue', 'q',
     'nowplaying', 'np', 'volume', 'vol', 'servervolume', 'filter', 'shuffle',
     'loop', 'move', 'add', 'remove', 'clear', 'status', 'ping', 'help',
-    'setspotify', 'playspotify', 'join', 'leave', 'rejoin', 'song-quote', 'quote',
+    'setspotify', 'playspotify', 'join', 'leave', 'rejoin', 'shift', 'disconnect', 'song-quote', 'quote',
     'mystats', 'leaderboard', 'resetstats', 'stats', 'afk', 'react', 'emoji',
     'avatar', 'av', 'banner', 'bn', 'purge', 'say', 'reveal', '24/7', 'doakes',
     'emma-heart', 'emma-heart1', 'emma-kiss', 'emma-hii', 'emma-worried',
     'emma-rawr', 'suscat', 'doakes-surprise', 'setavatar', 'setav', 'setbanner',
-    'setbn', 'setname', 'emma-heart-st', 'emma-heart-st1', 'noprefix', 'nop', 'count'
+    'setbn', 'setname', 'steal', 'emma-heart-st', 'emma-heart-st1', 'noprefix', 'nop', 'count'
 ];
 const validCommands = new Set(prefixCommands);
 
@@ -442,6 +442,96 @@ async function disable24Seven(guildId) {
     const result = await db.disable24Seven(guildId);
     return result;
 }
+
+async function sendHelpWithComponents(interaction) {
+    const guild = interaction.guild;
+    const user = interaction.user;
+    const client = interaction.client;
+
+	const embed = messages.buildMainHelpEmbed(guild, user);
+    const rows = messages.getHelpActionRows();
+
+    await interaction.editReply({ embeds: [embed], components: rows });
+
+    const message = await interaction.fetchReply();
+    const collector = message.createMessageComponentCollector({
+        filter: i => i.user.id === user.id,
+        time: 300000
+    });
+
+    collector.on('collect', async i => {
+        if (i.customId === 'help_home') {
+            const mainEmbed = messages.buildMainHelpEmbed(guild, i.user);
+            await i.update({ 
+                embeds: [mainEmbed], 
+                components: messages.getHelpActionRows()
+            });
+        } else if (i.customId === 'help_category') {
+            const categoryKey = i.values[0];
+            const categoryName = i.component.options.find(opt => opt.value === categoryKey).label;
+            const commands = messages.categories[categoryKey];
+            const embed = messages.buildCategoryEmbed(guild, categoryKey, categoryName, commands, i.user);
+            await i.update({ 
+                embeds: [embed], 
+                components: messages.getHelpActionRows(categoryKey)
+            });
+        }
+    });
+
+    collector.on('end', () => {
+        const disabledRows = messages.getHelpActionRows().map(row =>
+            ActionRowBuilder.from(row).setComponents(
+                row.components.map(c => ButtonBuilder.from(c).setDisabled(true))
+            )
+        );
+        interaction.editReply({ components: disabledRows }).catch(() => {});
+    });
+}
+
+async function sendPrefixHelpWithComponents(message) {
+    const guild = message.guild;
+    const user = message.author;
+    const client = message.client;
+
+	const embed = messages.buildMainHelpEmbed(guild, user);
+    const rows = messages.getHelpActionRows();
+
+    const sent = await message.channel.send({ embeds: [embed], components: rows });
+
+    const collector = sent.createMessageComponentCollector({
+        filter: i => i.user.id === user.id,
+        time: 300000
+    });
+
+    collector.on('collect', async i => {
+		if (i.customId === 'help_home') {
+			const mainEmbed = messages.buildMainHelpEmbed(guild, i.user);
+			await i.update({ 
+				embeds: [mainEmbed], 
+				components: messages.getHelpActionRows()
+			});
+		} else if (i.customId === 'help_category') {
+			const categoryKey = i.values[0];
+			const categoryName = i.component.options.find(opt => opt.value === categoryKey).label;
+			const commands = messages.categories[categoryKey];
+			const embed = messages.buildCategoryEmbed(guild, categoryKey, categoryName, commands, i.user);
+			await i.update({ 
+				embeds: [embed], 
+				components: messages.getHelpActionRows(categoryKey)
+			});
+		}
+	});
+
+    collector.on('end', () => {
+        const disabledRows = messages.getHelpActionRows().map(row => 
+            ActionRowBuilder.from(row).setComponents(
+                row.components.map(c => ButtonBuilder.from(c).setDisabled(true))
+            )
+        );
+        sent.edit({ components: disabledRows }).catch(() => {});
+    });
+}
+
 const spotify = new Spotify({
     clientId: config.spotify.clientId,
     clientSecret: config.spotify.clientSecret
@@ -664,6 +754,27 @@ const slashCommands = [
 			option.setName('text')
 				.setDescription('Optional custom text to add')
 				.setRequired(false)),
+	
+	new SlashCommandBuilder()
+		.setName('shift')
+		.setDescription('Move a user to another voice channel')
+		.addUserOption(option =>
+			option.setName('user')
+				.setDescription('User to move (defaults to yourself)')
+				.setRequired(false))
+		.addChannelOption(option =>
+			option.setName('channel')
+				.setDescription('Target voice channel (defaults to bot’s channel or first VC)')
+				.setRequired(false)
+				.addChannelTypes(2)),
+
+	new SlashCommandBuilder()
+		.setName('disconnect')
+		.setDescription('Disconnect a user from voice channel (defaults to yourself)')
+		.addUserOption(option =>
+			option.setName('user')
+				.setDescription('User to disconnect (leave empty for yourself)')
+				.setRequired(false)),
 		
 	new SlashCommandBuilder()
         .setName('help')
@@ -838,9 +949,9 @@ client.once("clientReady", async () => {
             client.hostingIP = hostingInfo.ip;
         }
         if (db.botId) {
-            log('DATABASE', `🤖 Database initialized for bot: ${db.botId} (using PREFIXED collections)`);
+            log('DATABASE', `🪐 Database initialized for bot: ${db.botId} (using PREFIXED collections)`);
         } else {
-            log('DATABASE', `🤖 Database initialized for Heaven bot (using ORIGINAL collections)`);
+            log('DATABASE', `🪐 Database initialized for Heaven bot (using ORIGINAL collections)`);
         }
 
         const connected = await db.connect();
@@ -1409,52 +1520,9 @@ client.on(Events.InteractionCreate, async interaction => {
                 break;
             }
             case 'help': {
-                const commands = [
-                    { name: 'play <query>', description: 'Play a song or playlist' },
-                    { name: 'pause', description: 'Pause the current track' },
-                    { name: 'resume', description: 'Resume the current track' },
-                    { name: 'skip', description: 'Skip the current track' },
-                    { name: 'stop', description: 'Stop playback and clear queue' },
-					{ name: 'joins', description: 'Make the bot join any voice channel' },
-					{ name: 'leave', description: 'Make the bot leave the voice channel' },
-					{ name: 'rejoin', description: 'Make the bot leave and rejoin the current voice channel' },
-                    { name: 'lyrics', description: 'Show the lyrics of the current track' },
-                    { name: 'queue', description: 'Show the current queue' },
-                    { name: 'nowplaying', description: 'Show current track info' },
-                    { name: 'volume <0-100>', description: 'Adjust player volume' },
-                    { name: 'servervolume <0-100>', description: 'Set permanent volume for this server' },
-                    { name: 'filter <type>', description: 'Add different filters to playback' },
-                    { name: 'shuffle', description: 'Shuffle the current queue' },
-                    { name: 'loop', description: 'Toggle queue loop mode' },
-                    { name: 'move <from> <to>', description: 'Move a song in the queue' },
-                    { name: 'add <song> <position>', description: 'Add a track at specific position' },
-                    { name: 'remove <position>', description: 'Remove a track from queue' },
-                    { name: 'clear', description: 'Clear the current queue' },
-                    { name: 'status', description: 'Show player status' },
-                    { name: 'ping', description: 'Show the bot\'s ping' },
-                    { name: 'mystats', description: 'View your personal music statistics' },
-                    { name: 'leaderboard', description: 'Global ranking of top listeners' },
-                    { name: 'resetmystats', description: 'Reset your personal statistics' },
-                    { name: 'setspotify <username>', description: 'Set your Spotify username' },
-                    { name: 'playspotify', description: 'Play your saved Spotify playlists' },
-                    { name: '24-7-enable', description: 'Enable 24/7 mode in a voice channel' },
-                    { name: '24-7-disable', description: 'Disable 24/7 mode' },
-                    { name: 'song-quote <text>', description: 'Create a quote image with current track' },
-                    { name: 'help', description: 'Show this help message' }
-                ];
-                
-                const embed = new EmbedBuilder()
-                    .setColor(config.embedColor)
-                    .setTitle(`${emojis.info} Available Commands`)
-                    .setDescription(commands.map(cmd => 
-                        `${emojis.music} \`${cmd.name}\` - ${cmd.description}`
-                    ).join('\n'))
-                    .setImage("https://i.ibb.co/gLM9bMf9/standard.gif")
-                    .setFooter({ text: 'Prefix: ~ • Example: ~play <song name>' });
-                
-                await interaction.editReply({ embeds: [embed] });
-                break;
-            }
+			  await sendHelpWithComponents(interaction);
+			  break;
+			}
             case 'setspotify': {
                 const username = options.getString('username');
                 const success = await db.setSpotifyId(interaction.user.id, username);
@@ -1600,11 +1668,11 @@ client.on(Events.InteractionCreate, async interaction => {
 								.setTimestamp();
 
 							await i.user.send({ embeds: [dmEmbed] });
-							await i.reply({ content: `${emojis.success} Image sent to your DMs!`, ephemeral: true });
+							await i.reply({ content: `${emojis.success} Image sent to your DMs!`, flags: MessageFlags.Ephemeral });
 						} catch (error) {
 							await i.reply({
 								content: `${emojis.error} Could not send you a DM. Please make sure your DMs are open.`,
-								ephemeral: true
+								flags: MessageFlags.Ephemeral
 							});
 						}
 					});
@@ -1754,6 +1822,19 @@ client.on(Events.InteractionCreate, async interaction => {
 
 			case 'rejoin': {
 				await handleRejoin(interaction, true);
+				break;
+			}
+			
+			case 'shift': {
+				const targetUser = options.getUser('user') || interaction.user;
+				const targetChannel = options.getChannel('channel');
+				await handleShift(interaction, true, targetUser, targetChannel);
+				break;
+			}
+
+			case 'disconnect': {
+				const targetUser = options.getUser('user') || interaction.user;
+				await handleDisconnect(interaction, true, targetUser);
 				break;
 			}
 
@@ -2935,11 +3016,11 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
                     .setTimestamp();
 
                 await i.user.send({ embeds: [dmEmbed] });
-                await i.reply({ content: `${emojis.success} Image sent to your DMs!`, ephemeral: true });
+                await i.reply({ content: `${emojis.success} Image sent to your DMs!`, flags: MessageFlags.Ephemeral });
             } catch (error) {
                 await i.reply({
                     content: `${emojis.error} Could not send you a DM. Please make sure your DMs are open.`,
-                    ephemeral: true
+                    flags: MessageFlags.Ephemeral
                 });
             }
         });
@@ -3163,7 +3244,7 @@ async function handleQuote(context, isInteraction = false, initialOptions = {}) 
             currentOptions = client.quoteOptions.get(sentMsg.id) || currentOptions;
 
             if (currentOptions.cancelled) {
-                await i.reply({ content: 'This quote has been cancelled.', ephemeral: true });
+                await i.reply({ content: 'This quote has been cancelled.', flags: MessageFlags.Ephemeral });
                 return;
             }
 
@@ -3204,15 +3285,15 @@ async function handleQuote(context, isInteraction = false, initialOptions = {}) 
                         .setFooter({ text: `Requested by ${i.user.tag}` })
                         .setTimestamp();
                     await i.user.send({ embeds: [dmEmbed] });
-                    await i.reply({ content: `${emojis.success} Image sent to your DMs!`, ephemeral: true });
+                    await i.reply({ content: `${emojis.success} Image sent to your DMs!`, flags: MessageFlags.Ephemeral });
                 } catch (error) {
-                    await i.reply({ content: `${emojis.error} Could not send DM.`, ephemeral: true });
+                    await i.reply({ content: `${emojis.error} Could not send DM.`, flags: MessageFlags.Ephemeral });
                 }
                 return;
             }
 
             if (currentOptions.confirmed) {
-                await i.reply({ content: 'Quote already confirmed. You can only download or send to DM.', ephemeral: true });
+                await i.reply({ content: 'Quote already confirmed. You can only download or send to DM.', flags: MessageFlags.Ephemeral });
                 return;
             }
 
@@ -3720,15 +3801,126 @@ async function handleRejoin(context, isInteraction = false) {
     );
 }
 
+async function handleShift(context, isInteraction, targetUser, targetChannel) {
+    const guild = isInteraction ? context.guild : context.guild;
+    const channel = isInteraction ? context.channel : context.channel;
+    const commandUserId = isInteraction ? context.user.id : context.author.id;
+
+    const hasPermission = commandUserId === ownerId ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.MoveMembers));
+    if (!hasPermission) {
+        return sendResponse(context, messages.error(channel, "You need `Move Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
+    }
+
+    let targetMember;
+    try {
+        targetMember = await guild.members.fetch(targetUser.id);
+    } catch {
+        return sendResponse(context, messages.error(channel, "Could not find that user in this server."), isInteraction);
+    }
+
+    if (!targetMember.voice.channel) {
+        if (targetUser.id === commandUserId) {
+            return sendResponse(context, messages.error(channel, "You are not in a voice channel!"), isInteraction);
+        } else {
+            return sendResponse(context, messages.error(channel, "The user is not in any voice channel!"), isInteraction);
+        }
+    }
+    const sourceChannel = targetMember.voice.channel;
+
+    let destChannel;
+    if (targetChannel) {
+
+        destChannel = guild.channels.cache.get(targetChannel.id);
+        if (!destChannel) {
+            return sendResponse(context, messages.error(channel, "Voice channel not found!"), isInteraction);
+        }
+        if (destChannel.type !== 2) {
+            return sendResponse(context, messages.error(channel, "You have provided a text channel. Provide a voice channel!"), isInteraction);
+        }
+    } else {
+
+        const botMember = guild.members.me;
+        if (botMember.voice.channel) {
+            destChannel = botMember.voice.channel;
+        } else {
+
+            const voiceChannels = guild.channels.cache
+                .filter(c => c.type === 2)
+                .sort((a, b) => a.rawPosition - b.rawPosition);
+            destChannel = voiceChannels.first();
+            if (!destChannel) {
+                return sendResponse(context, messages.error(channel, "No voice channels exist in this server!"), isInteraction);
+            }
+        }
+    }
+
+    try {
+        await targetMember.voice.setChannel(destChannel);
+        const successText = `Shifted ${targetMember} from ${sourceChannel} to ${destChannel}!`;
+        return sendResponse(context, messages.success(channel, successText), isInteraction);
+    } catch (error) {
+        log('ERROR', `Shift error: ${error.message}`);
+        return sendResponse(context, messages.error(channel, `Failed to shift: ${error.message}`), isInteraction);
+    }
+}
+
+async function handleDisconnect(context, isInteraction, targetUser) {
+    const guild = isInteraction ? context.guild : context.guild;
+    const channel = isInteraction ? context.channel : context.channel;
+    const commandUserId = isInteraction ? context.user.id : context.author.id;
+
+    const hasPermission = commandUserId === ownerId ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
+                         (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.MoveMembers));
+    if (!hasPermission) {
+        return sendResponse(context, messages.error(channel, "You need `Move Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
+    }
+
+    let targetMember;
+    try {
+        targetMember = await guild.members.fetch(targetUser.id);
+    } catch {
+        return sendResponse(context, messages.error(channel, "Could not find that user in this server."), isInteraction);
+    }
+
+    if (!targetMember.voice.channel) {
+        if (targetUser.id === commandUserId) {
+            return sendResponse(context, messages.error(channel, "You are not in any voice channel!"), isInteraction);
+        } else {
+            return sendResponse(context, messages.error(channel, "The provided user is not in any voice channel!"), isInteraction);
+        }
+    }
+
+    const sourceChannel = targetMember.voice.channel;
+
+    try {
+        await targetMember.voice.disconnect();
+        const successText = targetUser.id === commandUserId
+            ? `Successfully disconnected you from ${sourceChannel}!`
+            : `Successfully disconnected ${targetMember} from ${sourceChannel}!`;
+        return sendResponse(context, messages.success(channel, successText), isInteraction);
+    } catch (error) {
+        log('ERROR', `Disconnect error: ${error.message}`);
+        return sendResponse(context, messages.error(channel, `Failed to disconnect: ${error.message}`), isInteraction);
+    }
+}
+
 async function sendResponse(context, content, isInteraction = false) {
     try {
-        if (isInteraction) {
 
+        if (!content) {
+            content = { content: '​' };
+        } else if (typeof content === 'string' && content.trim() === '') {
+            content = '​';
+        }
+
+        if (isInteraction) {
             return await context.editReply(
                 typeof content === 'string' ? { content } : content
             );
         } else {
-
             if (typeof content === 'string') {
                 return await context.channel.send(content);
             } else {
@@ -3958,6 +4150,49 @@ async function handlePrefixCommand(message, cmd, args) {
 				break;
 			}
 			
+			case 'shift': {
+				let targetUser = message.author;
+				let targetChannel = null;
+
+				if (args.length >= 1) {
+
+					const userMatch = args[0].match(/^<@!?(\d+)>$/);
+					const userId = userMatch ? userMatch[1] : args[0];
+					try {
+						const fetchedUser = await client.users.fetch(userId, { force: false });
+						targetUser = fetchedUser;
+						args.shift();
+					} catch {
+
+					}
+				}
+				if (args.length >= 1) {
+
+					const channelMatch = args[0].match(/^<#(\d+)>$/);
+					const channelId = channelMatch ? channelMatch[1] : args[0];
+					targetChannel = message.guild.channels.cache.get(channelId);
+					if (targetChannel) args.shift();
+				}
+
+				await handleShift(message, false, targetUser, targetChannel);
+				break;
+			}
+
+			case 'disconnect': {
+				let targetUser = message.author;
+				if (args.length > 0) {
+					const mention = args[0].match(/^<@!?(\d+)>$/);
+					const userId = mention ? mention[1] : args[0];
+					try {
+						targetUser = await client.users.fetch(userId, { force: false });
+					} catch {
+
+					}
+				}
+				await handleDisconnect(message, false, targetUser);
+				break;
+			}
+			
             case 'lyrics': {
                 await handleLyrics(message, false);
                 break;
@@ -4064,9 +4299,9 @@ async function handlePrefixCommand(message, cmd, args) {
             }
             
             case 'help': {
-                await handleHelp(message, false);
-                break;
-            }
+				await sendPrefixHelpWithComponents(message);
+				break;
+			}
             
             case 'setspotify': {
                 const username = args.join(' ');
@@ -4237,12 +4472,18 @@ async function handlePrefixCommand(message, cmd, args) {
 			case 'av': {
 				let targetUser = message.author;
 				let targetGuild = null;
+				let member = null;
+				let hasServerAvatar = false;
 
 				if (args.length > 0) {
 					const firstArg = args[0].toLowerCase();
 
 					if (firstArg === 'bot') {
 						targetUser = client.user;
+						member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
+						if (!member) {
+							return messages.error(message.channel, 'Bot is not a member of this server? Something is wrong.');
+						}
 					} else if (firstArg === 'server') {
 						targetGuild = message.guild;
 						if (!targetGuild.icon) {
@@ -4263,12 +4504,16 @@ async function handlePrefixCommand(message, cmd, args) {
 						} catch {
 							return messages.error(message.channel, 'Invalid user!');
 						}
+						member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
+						if (!member) {
+							return messages.error(message.channel, 'That user is not a member of this server!');
+						}
 					}
 				} else {
 					targetUser = await client.users.fetch(message.author.id, { force: true });
+					member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
 				}
-				const member = message.guild.members.cache.get(targetUser.id);
-				const hasServerAvatar = member && member.avatar;
+				hasServerAvatar = !!(member && member.avatar);
 
 				if (hasServerAvatar) {
 					const promptEmbed = new EmbedBuilder()
@@ -4336,17 +4581,19 @@ async function handlePrefixCommand(message, cmd, args) {
 			case 'bn': {
 				let targetUser = message.author;
 				let targetGuild = null;
-				let hasServerBanner = false;
 				let member = null;
+				let hasServerBanner = false;
+				let hasGlobalBanner = false;
 
 				if (args.length > 0) {
 					const firstArg = args[0].toLowerCase();
 
 					if (firstArg === 'bot') {
-						await client.user.fetch();
 						targetUser = client.user;
 						member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
-						hasServerBanner = member && member.banner ? true : false;
+						if (!member) {
+							return messages.error(message.channel, 'Bot is not a member of this server? Something is wrong.');
+						}
 					} else if (firstArg === 'server') {
 						targetGuild = message.guild;
 						if (!targetGuild.banner) {
@@ -4364,19 +4611,20 @@ async function handlePrefixCommand(message, cmd, args) {
 						const userId = mention ? mention[1] : args[0];
 						try {
 							targetUser = await client.users.fetch(userId, { force: true });
-							member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
-							hasServerBanner = member && member.banner ? true : false;
 						} catch {
 							return messages.error(message.channel, 'Invalid user!');
+						}
+						member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
+						if (!member) {
+							return messages.error(message.channel, 'That user is not a member of this server!');
 						}
 					}
 				} else {
 					targetUser = await client.users.fetch(message.author.id, { force: true });
 					member = await message.guild.members.fetch({ user: targetUser.id, force: true }).catch(() => null);
-					hasServerBanner = member && member.banner ? true : false;
 				}
-
-				const hasGlobalBanner = targetUser.banner ? true : false;
+				hasGlobalBanner = !!targetUser.banner;
+				hasServerBanner = !!(member && member.banner);
 
 				const showBanner = async (type) => {
 					let bannerURL, title;
@@ -4447,6 +4695,429 @@ async function handlePrefixCommand(message, cmd, args) {
 				}
 				else {
 					return messages.error(message.channel, `${targetUser.username} does not have any banner.`);
+				}
+				break;
+			}
+			
+			case 'steal': {
+				try {
+					const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+					const fetch = require('node-fetch');
+					let assetUrl = null;
+					let assetName = null;
+					let isAnimated = false;
+					let contentType = null;
+					let assetSource = null;
+					let formatType = 'Unknown';
+
+					if (args.length > 0) {
+
+						const emojiRegex = /^<a?:([a-zA-Z0-9_]+):(\d+)>$/;
+						const match = args[0].match(emojiRegex);
+						if (match) {
+							const emojiName = match[1];
+							const emojiId = match[2];
+							isAnimated = args[0].startsWith('<a:');
+							assetUrl = `https://cdn.discordapp.com/emojis/${emojiId}.${isAnimated ? 'gif' : 'png'}`;
+							contentType = isAnimated ? 'image/gif' : 'image/png';
+							assetName = emojiName;
+							assetSource = 'emoji';
+							formatType = isAnimated ? 'Animated Emoji' : 'Static Emoji';
+						} else {
+
+							const errorMsg = await message.channel.send(`${emojis.error} | Please provide a valid custom emoji (e.g., :emoji: or <:emoji:123456>)`);
+							setTimeout(() => errorMsg.delete().catch(() => {}), 5000);
+							return;
+						}
+					} else {
+
+						if (!message.reference) {
+							const errorMsg = await message.channel.send(`${emojis.error} | Please reply to a message containing an emoji, sticker, or image to steal, or provide an emoji as an argument!`);
+							setTimeout(() => errorMsg.delete().catch(() => {}), 5000);
+							return;
+						}
+
+						const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
+
+						if (repliedMessage.stickers.size > 0) {
+							const sticker = repliedMessage.stickers.first();
+							assetUrl = sticker.url;
+							isAnimated = sticker.format === 2 || sticker.format === 3;
+							contentType = sticker.format === 2 ? 'image/apng' : sticker.format === 3 ? 'image/gif' : 'image/png';
+							assetName = assetName || sticker.name;
+							assetSource = 'sticker';
+							formatType = isAnimated ? 'Animated Sticker' : 'Static Sticker';
+						}
+
+						else if (repliedMessage.content.match(/<a?:[a-zA-Z0-9_]+:(\d+)>/)) {
+							const emojiMatch = repliedMessage.content.match(/<a?:[a-zA-Z0-9_]+:(\d+)>/);
+							const emojiId = emojiMatch[1];
+							isAnimated = repliedMessage.content.includes('<a:');
+							assetUrl = `https://cdn.discordapp.com/emojis/${emojiId}.${isAnimated ? 'gif' : 'png'}`;
+							contentType = isAnimated ? 'image/gif' : 'image/png';
+							const emojiName = repliedMessage.content.match(/<a?:([a-zA-Z0-9_]+):\d+>/)[1];
+							assetName = assetName || emojiName;
+							assetSource = 'emoji';
+							formatType = isAnimated ? 'Animated Emoji' : 'Static Emoji';
+						}
+
+						else if (repliedMessage.attachments.size > 0) {
+							const attachment = repliedMessage.attachments.first();
+							const validImageTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif', 'image/apng', 'image/bmp', 'image/tiff'];
+							if (attachment.contentType && validImageTypes.some(type => attachment.contentType.includes(type))) {
+								assetUrl = attachment.url;
+								contentType = attachment.contentType;
+								isAnimated = attachment.contentType.includes('gif') || attachment.contentType.includes('apng');
+								const fileName = attachment.name || 'stolen_asset';
+								assetName = assetName || fileName.replace(/\.[^/.]+$/, "");
+								assetSource = 'attachment';
+
+								if (attachment.url.toLowerCase().endsWith('.gif')) {
+									contentType = 'image/gif';
+									isAnimated = true;
+									formatType = 'GIF Image';
+								} else if (attachment.url.toLowerCase().endsWith('.webp')) {
+									contentType = 'image/webp';
+									formatType = 'WebP Image';
+								} else if (attachment.url.toLowerCase().endsWith('.jpg') || attachment.url.toLowerCase().endsWith('.jpeg')) {
+									contentType = 'image/jpeg';
+									formatType = 'JPEG Image';
+								} else if (attachment.url.toLowerCase().endsWith('.bmp')) {
+									contentType = 'image/bmp';
+									formatType = 'BMP Image';
+								} else if (attachment.url.toLowerCase().endsWith('.tiff') || attachment.url.toLowerCase().endsWith('.tif')) {
+									contentType = 'image/tiff';
+									formatType = 'TIFF Image';
+								} else {
+									formatType = 'PNG Image';
+								}
+							}
+						}
+
+						if (!assetUrl && repliedMessage.embeds.length > 0) {
+							for (const embed of repliedMessage.embeds) {
+								if (embed.image && embed.image.url) {
+									assetUrl = embed.image.url;
+									contentType = 'image/gif';
+									isAnimated = true;
+									assetName = assetName || 'gif_asset';
+									assetSource = 'embed';
+									formatType = 'Embed GIF';
+									break;
+								} else if (embed.thumbnail && embed.thumbnail.url) {
+									assetUrl = embed.thumbnail.url;
+									contentType = embed.thumbnail.url.toLowerCase().endsWith('.gif') ? 'image/gif' : 'image/png';
+									isAnimated = embed.thumbnail.url.toLowerCase().endsWith('.gif');
+									assetName = assetName || 'embed_asset';
+									assetSource = 'embed';
+									formatType = isAnimated ? 'Embed GIF' : 'Embed Image';
+									break;
+								}
+							}
+						}
+
+						if (!assetUrl) {
+							const urlRegex = /(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp|apng|bmp|tiff|tif))/i;
+							const urlMatch = repliedMessage.content.match(urlRegex);
+							if (urlMatch) {
+								assetUrl = urlMatch[1];
+								const urlWithoutQuery = assetUrl.split('?')[0];
+								const fileExt = urlWithoutQuery.toLowerCase().split('.').pop();
+								if (fileExt === 'gif') {
+									contentType = 'image/gif';
+									isAnimated = true;
+									formatType = 'GIF URL';
+								} else if (fileExt === 'webp') {
+									contentType = 'image/webp';
+									formatType = 'WebP URL';
+								} else if (fileExt === 'jpg' || fileExt === 'jpeg') {
+									contentType = 'image/jpeg';
+									formatType = 'JPEG URL';
+								} else if (fileExt === 'bmp') {
+									contentType = 'image/bmp';
+									formatType = 'BMP URL';
+								} else if (fileExt === 'tiff' || fileExt === 'tif') {
+									contentType = 'image/tiff';
+									formatType = 'TIFF URL';
+								} else {
+									contentType = 'image/png';
+									formatType = 'PNG URL';
+								}
+								assetName = assetName || 'image_asset';
+								assetSource = 'url';
+							}
+						}
+					}
+
+					if (!assetUrl) {
+						const errorMsg = await message.channel.send(`${emojis.error} | No valid emoji, sticker, or image found!`);
+						setTimeout(() => errorMsg.delete().catch(() => {}), 5000);
+						return;
+					}
+
+					if (assetSource === 'attachment' && isAnimated) {
+						const errorMsg = await message.channel.send(`${emojis.error} | Animated attachments are not supported!`);
+						setTimeout(() => errorMsg.delete().catch(() => {}), 5000);
+						return;
+					}
+
+					const embed = new EmbedBuilder()
+						.setColor(config.embedColor || '#5865F2')
+						.setTitle(`${emojis.butterfly} Media Stealer`)
+						.setDescription(`**${formatType}** detected\nClick a button below to steal this asset`)
+						.addFields([
+							{
+								name: `${emojis.info} Details`,
+								value: `**Name:** ${assetName || 'Unnamed'}\n**Type:** ${formatType}\n**Source:** ${assetSource ? assetSource.charAt(0).toUpperCase() + assetSource.slice(1) : 'Unknown'}`,
+								inline: true
+							},
+							{
+								name: `${emojis.blackheart1} Options`,
+								value: `${emojis.music} **Steal as Emoji** - Adds as server emoji\n${emojis.music} **Steal as Sticker** - Adds as server sticker`,
+								inline: true
+							}
+						])
+						.setImage(assetUrl)
+						.setFooter({ 
+							text: `Using sharp for conversion • Click within 60 seconds`, 
+							iconURL: 'https://i.ibb.co/gLM9bMf9/standard.gif' 
+						})
+						.setTimestamp();
+
+					const row = new ActionRowBuilder()
+						.addComponents(
+							new ButtonBuilder()
+								.setCustomId(`steal_emoji_${message.id}_${Date.now()}`)
+								.setLabel('✨ Steal as Emoji')
+								.setStyle(ButtonStyle.Primary),
+							new ButtonBuilder()
+								.setCustomId(`steal_sticker_${message.id}_${Date.now()}`)
+								.setLabel('🎨 Steal as Sticker')
+								.setStyle(ButtonStyle.Secondary)
+						);
+
+					const stealMessage = await message.channel.send({ 
+						embeds: [embed], 
+						components: [row]
+					});
+
+					const filter = (interaction) => 
+						(interaction.customId.startsWith(`steal_emoji_${message.id}_`) || 
+						 interaction.customId.startsWith(`steal_sticker_${message.id}_`)) &&
+						interaction.user.id === message.author.id;
+
+					const collector = stealMessage.createMessageComponentCollector({ 
+						filter, 
+						time: 60000,
+						max: 1
+					});
+
+					collector.on('collect', async (interaction) => {
+						if (interaction.user.id !== config.ownerId && !interaction.memberPermissions.has('ManageEmojisAndStickers')) {
+							await interaction.reply({ 
+								content: `${emojis.error} | You need the "Manage Emojis and Stickers" permission!`,
+								flags: 64
+							});
+							return;
+						}
+						if (!interaction.guild.members.me.permissions.has('ManageEmojisAndStickers')) {
+							await interaction.reply({ 
+								content: `${emojis.error} | I need the "Manage Emojis and Stickers" permission!`,
+								flags: 64
+							});
+							return;
+						}
+
+						await interaction.deferReply({ flags: 64 });
+
+						try {
+							const response = await fetch(assetUrl, {
+								headers: {
+									'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+								}
+							});
+							if (!response.ok) throw new Error(`HTTP ${response.status}`);
+							let buffer = await response.buffer();
+
+							const finalName = (assetName || 'stolen')
+								.replace(/[^a-zA-Z0-9_]/g, '_')
+								.replace(/_+/g, '_')
+								.replace(/^_|_$/g, '')
+								.slice(0, 30);
+							if (!finalName) throw new Error('Invalid name');
+
+							if (interaction.customId.startsWith(`steal_emoji_`)) {
+
+								try {
+									let emojiBuffer = buffer;
+
+									if (contentType.includes('webp') || contentType.includes('jpeg') || contentType.includes('jpg') || contentType.includes('bmp') || contentType.includes('tiff')) {
+										try {
+											const sharp = require('sharp');
+											if (isAnimated) {
+
+												try {
+													emojiBuffer = await sharp(buffer, { animated: true })
+														.gif()
+														.toBuffer();
+												} catch {
+													emojiBuffer = await sharp(buffer)
+														.png()
+														.toBuffer();
+												}
+											} else {
+												emojiBuffer = await sharp(buffer)
+													.png()
+													.toBuffer();
+											}
+										} catch (sharpError) {
+											console.log('Sharp conversion failed, using original buffer');
+										}
+									}
+
+									const emoji = await interaction.guild.emojis.create({
+										attachment: emojiBuffer,
+										name: finalName.slice(0, 32),
+										reason: `Stolen by ${interaction.user.tag}`
+									});
+
+									const successEmbed = new EmbedBuilder()
+										.setColor('#00FF00')
+										.setTitle(`${emojis.success} Successfully stole as Emoji`)
+										.setDescription(`**${finalName}** has been added to server emojis`)
+										.addFields([
+											{
+												name: `${emojis.info} Details`,
+												value: `${emoji}\n**Format:** ${isAnimated ? 'Animated' : 'Static'}\n**Added by:** ${interaction.user.tag}`,
+												inline: true
+											}
+										])
+										.setImage(assetUrl)
+										.setFooter({ 
+											text: 'Emoji added successfully • Using sharp for conversion', 
+											iconURL: 'https://i.ibb.co/gLM9bMf9/standard.gif' 
+										})
+										.setTimestamp();
+
+									await stealMessage.edit({ embeds: [successEmbed], components: [] });
+									await interaction.editReply({ content: `${emoji} | Successfully stole as emoji!` });
+
+								} catch (emojiError) {
+									console.error('Emoji creation error:', emojiError);
+									let errorMessage = 'Failed to create emoji';
+									if (emojiError.code === 30008) errorMessage = 'Server has reached maximum emoji limit';
+									else if (emojiError.code === 50045 || emojiError.message.includes('Invalid Form Body')) errorMessage = 'Invalid image format for emoji';
+									else if (emojiError.message.includes('animated')) errorMessage = 'Server needs higher boost level for animated emojis';
+									await interaction.editReply({ content: `${emojis.error} | ${errorMessage}` });
+								}
+
+							} else if (interaction.customId.startsWith(`steal_sticker_`)) {
+
+								try {
+									const sharp = require('sharp');
+									let stickerBuffer = buffer;
+									let stickerFormat = 'png';
+
+									if (isAnimated) {
+
+										try {
+											stickerBuffer = await sharp(buffer, { animated: true })
+												.png()
+												.toBuffer();
+											stickerFormat = 'png';
+										} catch {
+
+										}
+									} else {
+
+										if (contentType.includes('jpeg') || contentType.includes('jpg') || contentType.includes('webp') || contentType.includes('bmp') || contentType.includes('tiff')) {
+											stickerBuffer = await sharp(buffer).png().toBuffer();
+											stickerFormat = 'png';
+										}
+									}
+
+
+									const sticker = await interaction.guild.stickers.create({
+										file: stickerBuffer,
+										name: finalName,
+										tags: finalName.slice(0, 2),
+										description: `Stolen by ${interaction.user.tag}`,
+										reason: `Stolen by ${interaction.user.tag}`
+									}).catch(err => {
+										if (err.code === 30039) throw new Error('Server has reached maximum sticker limit');
+										throw err;
+									});
+
+									const successEmbed = new EmbedBuilder()
+										.setColor('#00FF00')
+										.setTitle(`${emojis.success} Successfully stole as ${isAnimated ? 'Animated ' : ''}Sticker`)
+										.setDescription(`**${finalName}** has been added to server stickers`)
+										.addFields([
+											{
+												name: `${emojis.info} Details`,
+												value: `**Format:** ${isAnimated ? 'Animated' : 'Static'}\n**Size:** ${Math.round(stickerBuffer.length/1024)}KB\n**Added by:** ${interaction.user.tag}`,
+												inline: true
+											}
+										])
+										.setImage(assetUrl)
+										.setFooter({ 
+											text: 'Sticker added successfully • Using sharp for conversion', 
+											iconURL: 'https://i.ibb.co/gLM9bMf9/standard.gif' 
+										})
+										.setTimestamp();
+
+									await stealMessage.edit({ embeds: [successEmbed], components: [] });
+									await interaction.editReply({ content: `${emojis.success} | Successfully stole as ${isAnimated ? 'animated ' : ''}sticker!` });
+
+								} catch (stickerError) {
+									console.error('Sticker creation error:', stickerError);
+									let errorMessage = 'Failed to create sticker';
+									if (stickerError.code === 30039) errorMessage = 'Server has reached maximum sticker limit';
+									else if (stickerError.message.includes('Invalid Form Body')) errorMessage = 'Invalid image format for sticker (try a static image)';
+									await interaction.editReply({ content: `${emojis.error} | ${errorMessage}` });
+								}
+							}
+
+						} catch (error) {
+							console.error('Steal processing error:', error);
+							await interaction.editReply({ content: `${emojis.error} | Failed to process asset: ${error.message}` });
+						}
+					});
+
+					collector.on('end', (collected, reason) => {
+						if (reason === 'time') {
+							const disabledRow = ActionRowBuilder.from(row);
+							disabledRow.components.forEach(button => {
+								button.setDisabled(true);
+								button.setStyle(ButtonStyle.Secondary);
+							});
+
+							const timeoutEmbed = new EmbedBuilder()
+								.setColor('#FFA500')
+								.setTitle(`${emojis.clock} Steal Timed Out`)
+								.setDescription('The selection period has expired. Use the command again if needed.')
+								.addFields([
+									{
+										name: `${emojis.info} Note`,
+										value: 'Buttons are now disabled. Re-run the command to try again.',
+										inline: false
+									}
+								])
+								.setImage(assetUrl)
+								.setFooter({ 
+									text: 'Command expired • Use ~steal again', 
+									iconURL: 'https://i.ibb.co/gLM9bMf9/standard.gif' 
+								})
+								.setTimestamp();
+
+							stealMessage.edit({ embeds: [timeoutEmbed], components: [disabledRow] }).catch(() => {});
+						}
+					});
+
+				} catch (error) {
+					console.error('Steal command error:', error);
+					const errorMsg = await message.channel.send(`${emojis.error} | Failed to process command`);
+					setTimeout(() => errorMsg.delete().catch(() => {}), 5000);
 				}
 				break;
 			}
@@ -5585,7 +6256,7 @@ async function handlePrefixCommand(message, cmd, args) {
 				}
 				break;
 			}
-        }
+		}
 }
 
 async function sendAfkEmbed(message, afkUser, afkData) {
@@ -5643,11 +6314,11 @@ const sendImageWithDMButton = async (channel, embed, requester) => {
     collector.on('collect', async i => {
         try {
             await i.user.send({ embeds: [embed.setFooter(null).setTimestamp()] });
-            await i.reply({ content: `${emojis.success} Image sent to your DMs!`, ephemeral: true });
+            await i.reply({ content: `${emojis.success} Image sent to your DMs!`, flags: MessageFlags.Ephemeral });
         } catch {
             await i.reply({ 
                 content: `${emojis.error} Could not send you a DM. Please make sure your DMs are open.`, 
-                ephemeral: true 
+                flags: MessageFlags.Ephemeral 
             });
         }
     });

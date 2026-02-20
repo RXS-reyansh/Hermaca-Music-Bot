@@ -14,10 +14,10 @@ module.exports = {
 	whitebutterfly: "<a:White_Butterfly:1472208250488492073>",
 	orangebutterfly: "<a:Orange_Butterfly:1472208209623384106>",
 	redbutterfly: "<a:a1:1471741703122583562>",
-	blackheart: "<:black_lil_heart:1471742221152817152>",
+	hearts1: "<a:hearts1:1474495246544142446>",
+	blackheart1: "<a:black_big_heart:1471742558978707586>",
 	playboy: "<:PLAYBOY:1471741307683868796>",
 	star: "<a:satan:1471741397810942040>",
-	blackheart1: "<a:black_big_heart:1471742558978707586>",
 	blacksparkles: "<a:black_sparkles:1471741592036446239>",
 	greensparkles: "<a:green_sparkles:1472173690274971740>",
 	doakesknows: "<:doakesknows:1471740329869836431>",
@@ -31,5 +31,8 @@ module.exports = {
 	catready: "<a:cat_ready:1471740197577293954>",
 	blackcrown: "<a:black_crown:1471740131332329513>",
 	blade: "<:blade:1471739598383353856>",
-	cutemusic: "<a:listening_to_music:1471739860099399720>"
+	cutemusic: "<a:listening_to_music:1471739860099399720>",
+	lustforlife: "<a:LustForLife_VINYL:1472208566395076711>",
+	chemtrails_grey: "<a:ChemtrailsGrey_VINYL:1472208567921545301>",
+	blackcross: "<a:black_cross:1474488000917536780>"
 }; 
