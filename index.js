@@ -107,10 +107,9 @@ const prefixCommands = [
     'avatar', 'av', 'banner', 'bn', 'purge', 'say', 'reveal', '24/7', 'doakes',
     'emma-heart', 'emma-heart1', 'emma-kiss', 'emma-hii', 'emma-worried',
     'emma-rawr', 'suscat', 'doakes-surprise', 'setavatar', 'setav', 'setbanner',
-    'setbn', 'setname', 'steal', 'emma-heart-st', 'emma-heart-st1', 'noprefix', 'nop', 'count'
+    'setbn', 'setname', 'setbio', 'resetprofile', 'steal', 'emma-heart-st', 'emma-heart-st1', 'noprefix', 'nop', 'count'
 ];
 
-// Command details for specific help
 const commandDetails = {
     play: {
         description: "Plays a song or playlist",
@@ -325,7 +324,7 @@ const commandDetails = {
     purge: {
         description: "Delete messages in bulk",
         usage: "__PREFIX__purge <amount|all>",
-        usageInfo: "Max 100 at a time. 'all' clears the entire channel (admin only)"
+        usageInfo: "Max 100 at a time. Argument 'all' clears the entire channel (admin only)"
     },
     count: {
         description: "Manage the counting game",
@@ -335,22 +334,27 @@ const commandDetails = {
     setavatar: {
         description: "Change the bot's server avatar",
         usage: "__PREFIX__setavatar <image URL or attachment>",
-        usageInfo: "Admin only. Use argument 'reset' to revert"
+        usageInfo: "Administrator only. Use argument 'reset' to revert"
     },
     setbanner: {
         description: "Change the bot's server banner",
         usage: "__PREFIX__setbanner <image URL or attachment>",
-        usageInfo: "Admin only. Use argument 'reset' to revert"
+        usageInfo: "Administrator only. Use argument 'reset' to revert"
     },
     setname: {
         description: "Change the bot's server nickname",
         usage: "__PREFIX__setname <new nickname>",
-        usageInfo: "Admin only. Use argument 'reset' to revert"
+        usageInfo: "Administrator only. Use argument 'reset' to revert"
     },
     setbio: {
         description: "Set the bot's server bio",
         usage: "__PREFIX__setbio <text>",
-        usageInfo: "Admin only. Use argument 'reset' to revert"
+        usageInfo: "Administrator only. Use argument 'reset' to revert"
+    },
+    resetprofile: {
+        description: "Reset the bot's server profile (nickname, avatar, banner, bio) to global defaults",
+        usage: "__PREFIX__resetprofile",
+        usageInfo: "Administrator only!"
     }
 };
 
@@ -478,6 +482,43 @@ async function imageUrlToBase64(url) {
     const buffer = Buffer.from(await response.arrayBuffer());
     const mime = response.headers.get('content-type') || 'image/png';
     return `data:${mime};base64,${buffer.toString('base64')}`;
+}
+
+/**
+ * Replaces all occurrences of -emoji-<identifier> in a string with the resolved emoji.
+ * @param {string} text - Input text containing placeholders.
+ * @param {Client} client - Discord client.
+ * @param {Guild} guild - Guild context (for name‑based emoji resolution).
+ * @returns {Promise<{result: string, invalid: string[]}>} Processed text and list of invalid identifiers.
+ */
+async function replaceEmojiPlaceholders(text, client, guild) {
+    const regex = /-emoji-([^\s]+)/g;
+    const placeholders = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        placeholders.push(match[0]);
+    }
+    if (placeholders.length === 0) return { result: text, invalid: [] };
+
+    const emojiMap = new Map();
+    const invalid = [];
+    await Promise.all(placeholders.map(async (fullMatch) => {
+        const inner = fullMatch.slice(8);
+        const parts = inner.split('/$/');
+        const resolvedParts = [];
+        for (const part of parts) {
+            const emoji = await resolveEmoji(client, part, guild);
+            if (emoji) {
+                resolvedParts.push(emoji.toString());
+            } else {
+                invalid.push(part);
+            }
+        }
+        emojiMap.set(fullMatch, resolvedParts.join(''));
+    }));
+
+    let result = text.replace(regex, (match) => emojiMap.get(match) || '');
+    return { result, invalid };
 }
 
 /* async function safeInteractionEdit(interaction, options, timeout = 10000) {
@@ -1053,6 +1094,159 @@ const slashCommands = [
 			option.setName('user')
 				.setDescription('User to undeafen (leave empty for yourself)')
 				.setRequired(false)),
+				
+	new SlashCommandBuilder()
+        .setName('setbio')
+        .setDescription('Set the bot\'s server profile bio (About Me)')
+        .addStringOption(option =>
+            option.setName('text')
+                .setDescription('Bio text or "reset" to clear')
+                .setRequired(true)),
+		
+	new SlashCommandBuilder()
+        .setName('afk')
+        .setDescription('Set your AFK status with a reason (and optional image)')
+        .addStringOption(option =>
+            option.setName('reason')
+                .setDescription('Reason for being AFK')
+                .setRequired(true))
+        .addAttachmentOption(option =>
+            option.setName('image')
+                .setDescription('Image to display with your AFK status')
+                .setRequired(false)),
+
+    new SlashCommandBuilder()
+        .setName('avatar')
+        .setDescription('View a user\'s avatar')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('The user (leave empty for yourself)')
+                .setRequired(false)),
+
+    new SlashCommandBuilder()
+        .setName('banner')
+        .setDescription('View a user\'s banner')
+        .addUserOption(option =>
+            option.setName('user')
+                .setDescription('The user (leave empty for yourself)')
+                .setRequired(false)),
+
+    new SlashCommandBuilder()
+        .setName('react')
+        .setDescription('React to a message with an emoji')
+        .addStringOption(option =>
+            option.setName('message_id')
+                .setDescription('ID of the message to react to')
+                .setRequired(true))
+        .addStringOption(option =>
+            option.setName('emoji')
+                .setDescription('Emoji name, ID, or custom emoji')
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('emoji')
+        .setDescription('Send emoji(s) as text')
+        .addStringOption(option =>
+            option.setName('emojis')
+                .setDescription('Emoji identifiers (separate with spaces, use /$/ to join without spaces)')
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('steal')
+        .setDescription('Steal an emoji or sticker from another server')
+        .addStringOption(option =>
+            option.setName('emoji')
+                .setDescription('Custom emoji (e.g., :emoji: or <:emoji:123>)')
+                .setRequired(false))
+        .addAttachmentOption(option =>
+            option.setName('image')
+                .setDescription('Image to upload as emoji/sticker')
+                .setRequired(false)),
+
+    new SlashCommandBuilder()
+        .setName('say')
+        .setDescription('Make the bot say something')
+        .addStringOption(option =>
+            option.setName('text')
+                .setDescription('Text to say (use \\n for newline, -emoji-<id> for emojis)')
+                .setRequired(true))
+        .addAttachmentOption(option =>
+            option.setName('attachment')
+                .setDescription('Optional file to attach')
+                .setRequired(false)),
+
+    new SlashCommandBuilder()
+        .setName('purge')
+        .setDescription('Delete messages in bulk')
+        .addIntegerOption(option =>
+            option.setName('amount')
+                .setDescription('Number of messages to delete (1‑100)')
+                .setMinValue(1)
+                .setMaxValue(100)
+                .setRequired(false))
+        .addBooleanOption(option =>
+            option.setName('all')
+                .setDescription('Delete ALL messages in the channel (admin only)')
+                .setRequired(false)),
+
+    new SlashCommandBuilder()
+        .setName('count')
+        .setDescription('Manage the counting game')
+        .addSubcommand(sub =>
+            sub.setName('enable')
+                .setDescription('Set the counting channel')
+                .addChannelOption(opt =>
+                    opt.setName('channel')
+                        .setDescription('The text channel for counting')
+                        .setRequired(true)))
+        .addSubcommand(sub =>
+            sub.setName('disable')
+                .setDescription('Disable counting in this server'))
+        .addSubcommand(sub =>
+            sub.setName('toggle-reset')
+                .setDescription('Toggle reset on wrong count'))
+        .addSubcommand(sub =>
+            sub.setName('start')
+                .setDescription('Start counting from a specific number')
+                .addIntegerOption(opt =>
+                    opt.setName('number')
+                        .setDescription('Starting number (must be ≥ 0)')
+                        .setRequired(true)
+                        .setMinValue(0)))
+        .addSubcommand(sub =>
+            sub.setName('calc')
+                .setDescription('Show supported calculations guide'))
+        .addSubcommand(sub =>
+            sub.setName('help')
+                .setDescription('Show help for counting commands')),
+
+    new SlashCommandBuilder()
+        .setName('setavatar')
+        .setDescription('Change the bot\'s server avatar')
+        .addAttachmentOption(option =>
+            option.setName('image')
+                .setDescription('Image to set as avatar')
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('setbanner')
+        .setDescription('Change the bot\'s server banner')
+        .addAttachmentOption(option =>
+            option.setName('image')
+                .setDescription('Image to set as banner')
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('setname')
+        .setDescription('Change the bot\'s server nickname')
+        .addStringOption(option =>
+            option.setName('nickname')
+                .setDescription('New nickname (max 32 characters)')
+                .setRequired(true)),
+
+    new SlashCommandBuilder()
+        .setName('resetprofile')
+        .setDescription('Reset the bot\'s server profile (nickname, avatar, banner, bio) to global defaults'),
 	
 	new SlashCommandBuilder()
     .setName('help')
@@ -1828,10 +2022,8 @@ client.on(Events.InteractionCreate, async interaction => {
 						return await interaction.editReply(`${emojis.error} | Command "${cmd}" not found.`);
 					}
 
-					// Replace __PREFIX__ with actual prefix using split and join (foolproof method)
 					const usage = details.usage.split('__PREFIX__').join(client.prefix);
-					
-					// Build description - all on one line after each label
+
 					const descriptionLines = [
 						`**${details.description}**`,
 						'',
@@ -2191,6 +2383,115 @@ client.on(Events.InteractionCreate, async interaction => {
 			case 'undeafen': {
 				const targetUser = options.getUser('user') || interaction.user;
 				await handleUndeafen(interaction, true, targetUser);
+				break;
+			}
+			
+			case 'setbio': {
+				const text = options.getString('text');
+				const isOwner = interaction.user.id === ownerId;
+				if (!isOwner && !member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+					return await interaction.editReply(`${emojis.error} | You need \`Administrator\` permission.`);
+				}
+
+				if (text.toLowerCase() === 'reset') {
+					await interaction.editReply(`${emojis.loading} | Resetting server bio...`);
+					try {
+						await rest.patch(Routes.guildMember(guild.id, '@me'), { body: { bio: null } });
+						await interaction.editReply(`${emojis.success} | Server bio reset to global default!`);
+					} catch (error) {
+						log('ERROR', `Setbio slash reset error: ${error.message}`);
+						await interaction.editReply(`${emojis.error} | Failed to reset bio: ${error.message}`);
+					}
+					break;
+				}
+				const withNewlines = text.replace(/\\n/g, '\n');
+				const { result: finalBio, invalid } = await replaceEmojiPlaceholders(withNewlines, client, guild);
+				if (invalid.length > 0) {
+					return await interaction.editReply(`${emojis.error} | The following emoji identifiers were not found:\n${invalid.map(id => `• ${id}`).join('\n')}`);
+				}
+				if (finalBio.length > 400) {
+					return await interaction.editReply(`${emojis.error} | Bio exceeds the 400 character limit (current: ${finalBio.length} characters).`);
+				}
+
+				await interaction.editReply(`${emojis.loading} | Setting server bio...`);
+
+				try {
+					await rest.patch(Routes.guildMember(guild.id, '@me'), { body: { bio: finalBio } });
+					await interaction.editReply(`${emojis.success} | Server bio set to:\n> ${finalBio}`);
+				} catch (error) {
+					log('ERROR', `Setbio slash error: ${error.message}`);
+					await interaction.editReply(`${emojis.error} | Failed to set bio: ${error.message}`);
+				}
+				break;
+			}
+			
+			case 'afk': {
+				const reason = options.getString('reason');
+				const image = options.getAttachment('image');
+				await handleAfkSlash(interaction, reason, image);
+				break;
+			}
+			case 'avatar': {
+				const targetUser = options.getUser('user') || interaction.user;
+				await handleAvatarSlash(interaction, targetUser);
+				break;
+			}
+			case 'banner': {
+				const targetUser = options.getUser('user') || interaction.user;
+				await handleBannerSlash(interaction, targetUser);
+				break;
+			}
+			case 'react': {
+				const messageId = options.getString('message_id');
+				const emojiIdent = options.getString('emoji');
+				await handleReactSlash(interaction, messageId, emojiIdent);
+				break;
+			}
+			case 'emoji': {
+				const emojisInput = options.getString('emojis');
+				await handleEmojiSlash(interaction, emojisInput);
+				break;
+			}
+			case 'steal': {
+				const emojiInput = options.getString('emoji');
+				const image = options.getAttachment('image');
+				await handleStealSlash(interaction, emojiInput, image);
+				break;
+			}
+			case 'say': {
+				const text = options.getString('text');
+				const attachment = options.getAttachment('attachment');
+				await handleSaySlash(interaction, text, attachment);
+				break;
+			}
+			case 'purge': {
+				const amount = options.getInteger('amount');
+				const all = options.getBoolean('all');
+				await handlePurgeSlash(interaction, amount, all);
+				break;
+			}
+			case 'count': {
+				const subcommand = options.getSubcommand();
+				await handleCountSlash(interaction, subcommand, options);
+				break;
+			}
+			case 'setavatar': {
+				const image = options.getAttachment('image');
+				await handleSetAvatarSlash(interaction, image);
+				break;
+			}
+			case 'setbanner': {
+				const image = options.getAttachment('image');
+				await handleSetBannerSlash(interaction, image);
+				break;
+			}
+			case 'setname': {
+				const nickname = options.getString('nickname');
+				await handleSetNameSlash(interaction, nickname);
+				break;
+			}
+			case 'resetprofile': {
+				await handleResetProfileSlash(interaction);
 				break;
 			}
 
@@ -3257,6 +3558,370 @@ function createPingEmbed(restLatency, wsLatency, clusterId, shard) {
         .setFooter({ text: `Database on MongoDB • Powered by ${client.hostingService || 'Unknown'}` })
         .setTimestamp();
 }
+
+async function handleAfkSlash(interaction, reason, imageAttachment) {
+    const guild = interaction.guild;
+    const user = interaction.user;
+    const channel = interaction.channel;
+    const withNewlines = reason.replace(/\\n/g, '\n');
+    const { result: finalReason, invalid } = await replaceEmojiPlaceholders(withNewlines, interaction.client, guild);
+    if (invalid.length > 0) {
+        return await interaction.editReply(`${emojis.error} | Invalid emoji identifiers:\n${invalid.map(id => `• ${id}`).join('\n')}`);
+    }
+
+    let imageUrl = null;
+    if (imageAttachment) {
+        imageUrl = imageAttachment.url;
+    }
+    const confirmEmbed = new EmbedBuilder()
+        .setColor(config.embedColor)
+        .setTitle('Are you sure you want to set your AFK reason to:')
+        .setDescription(finalReason)
+        .setFooter({ text: `Requested by ${user.tag}`, iconURL: user.displayAvatarURL() })
+        .setTimestamp();
+
+    if (imageUrl) confirmEmbed.setImage(imageUrl);
+
+    const row = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder().setCustomId('confirm_afk').setLabel('Confirm').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('cancel_afk').setLabel('Cancel').setStyle(ButtonStyle.Danger)
+        );
+
+    await interaction.editReply({ embeds: [confirmEmbed], components: [row] });
+
+    const filter = i => i.user.id === user.id;
+    const collector = interaction.channel.createMessageComponentCollector({ filter, time: 45000, max: 1 });
+
+    collector.on('collect', async i => {
+        if (i.customId === 'confirm_afk') {
+            const success = await db.setAFK(user.id, finalReason, imageUrl);
+            if (success) {
+                await i.update({ embeds: [new EmbedBuilder().setColor(config.embedColor).setDescription(`${emojis.success} AFK set in all servers!`)], components: [] });
+            } else {
+                await i.update({ embeds: [new EmbedBuilder().setColor(0xff5555).setDescription(`${emojis.error} Failed to set AFK status.`)], components: [] });
+            }
+        } else {
+            await i.update({ embeds: [new EmbedBuilder().setColor(0xff5555).setDescription(`${emojis.error} AFK command cancelled.`)], components: [] });
+        }
+        collector.stop();
+    });
+
+    collector.on('end', async () => {
+        try {
+            const disabledRow = ActionRowBuilder.from(row).setComponents(row.components.map(c => ButtonBuilder.from(c).setDisabled(true)));
+            await interaction.editReply({ components: [disabledRow] }).catch(() => {});
+        } catch {}
+    });
+}
+
+async function handleAvatarSlash(interaction, targetUser) {
+    const guild = interaction.guild;
+    const member = await guild.members.fetch(targetUser.id).catch(() => null);
+    const hasServerAvatar = !!(member && member.avatar);
+
+    const sendAvatar = async (type) => {
+        let avatarURL, title;
+        if (type === 'server' && member) {
+            avatarURL = member.displayAvatarURL({ dynamic: true, size: 4096 });
+            title = `${emojis.blackbutterfly} ${targetUser.username}'s server avatar`;
+        } else {
+            avatarURL = targetUser.displayAvatarURL({ dynamic: true, size: 4096 });
+            title = `${emojis.blackbutterfly} ${targetUser.username}'s global avatar`;
+        }
+        const embed = buildImageEmbed(title, avatarURL, interaction.user);
+        await sendImageWithDMButton(interaction, embed, interaction.user);
+    };
+
+    if (hasServerAvatar) {
+        const promptEmbed = new EmbedBuilder()
+            .setColor(config.embedColor)
+            .setTitle(`${emojis.info} Choose Avatar`)
+            .setDescription(`${targetUser.username} has a server‑specific avatar. Which one would you like to see?`)
+            .setFooter({ text: 'You have 60 seconds to decide' });
+
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder().setCustomId(`server_avatar_${targetUser.id}`).setLabel('Server Avatar').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId(`global_avatar_${targetUser.id}`).setLabel('Global Avatar').setStyle(ButtonStyle.Success)
+            );
+
+        await interaction.editReply({ embeds: [promptEmbed], components: [row] });
+
+        const filter = i => i.user.id === interaction.user.id;
+        const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000, max: 1 });
+
+        collector.on('collect', async i => {
+            if (i.customId.startsWith('server_avatar')) {
+                await sendAvatar('server');
+            } else {
+                await sendAvatar('global');
+            }
+            await i.update({ components: [] });
+        });
+
+        collector.on('end', () => {
+            interaction.editReply({ components: [] }).catch(() => {});
+        });
+    } else {
+        await sendAvatar('global');
+    }
+}
+
+async function handleBannerSlash(interaction, targetUser) {
+    const fullUser = await interaction.client.users.fetch(targetUser.id, { force: true });
+    const member = await interaction.guild.members.fetch(targetUser.id).catch(() => null);
+    const hasGlobalBanner = !!fullUser.banner;
+    const hasServerBanner = !!(member && member.banner);
+
+    const sendBanner = async (type) => {
+        let bannerURL, title;
+        if (type === 'server' && member && member.banner) {
+            bannerURL = member.bannerURL({ dynamic: true, size: 4096 });
+            title = `${emojis.blackbutterfly} ${targetUser.username}'s server banner`;
+        } else if (type === 'global' && fullUser.banner) {
+            bannerURL = fullUser.bannerURL({ dynamic: true, size: 4096 });
+            title = `${emojis.blackbutterfly} ${targetUser.username}'s global banner`;
+        } else {
+            return await interaction.editReply(`${emojis.error} | No banner found.`);
+        }
+        const embed = buildImageEmbed(title, bannerURL, interaction.user);
+        await sendImageWithDMButton(interaction, embed, interaction.user);
+    };
+
+    if (hasServerBanner && hasGlobalBanner) {
+        const promptEmbed = new EmbedBuilder()
+            .setColor(config.embedColor)
+            .setTitle(`${emojis.info} Choose Banner`)
+            .setDescription(`${targetUser.username} has both a server and global banner. Which one?`)
+            .setFooter({ text: 'You have 60 seconds' });
+
+        const row = new ActionRowBuilder()
+            .addComponents(
+                new ButtonBuilder().setCustomId(`server_banner_${targetUser.id}`).setLabel('Server Banner').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId(`global_banner_${targetUser.id}`).setLabel('Global Banner').setStyle(ButtonStyle.Success)
+            );
+
+        await interaction.editReply({ embeds: [promptEmbed], components: [row] });
+
+        const filter = i => i.user.id === interaction.user.id;
+        const collector = interaction.channel.createMessageComponentCollector({ filter, time: 60000, max: 1 });
+
+        collector.on('collect', async i => {
+            if (i.customId.startsWith('server_banner')) {
+                await sendBanner('server');
+            } else {
+                await sendBanner('global');
+            }
+            await i.update({ components: [] });
+        });
+
+        collector.on('end', () => {
+            interaction.editReply({ components: [] }).catch(() => {});
+        });
+    } else if (hasServerBanner) {
+        await sendBanner('server');
+    } else if (hasGlobalBanner) {
+        await sendBanner('global');
+    } else {
+        await interaction.editReply(`${emojis.error} | ${targetUser.username} does not have any banner.`);
+    }
+}
+
+async function handleReactSlash(interaction, messageId, emojiIdent) {
+    const channel = interaction.channel;
+    let message;
+    try {
+        message = await channel.messages.fetch(messageId);
+    } catch {
+        return await interaction.editReply(`${emojis.error} | Could not fetch that message.`);
+    }
+
+    const emoji = await resolveEmoji(interaction.client, emojiIdent, interaction.guild);
+    if (!emoji) {
+        return await interaction.editReply(`${emojis.error} | Emoji not found.`);
+    }
+
+    try {
+        await message.react(emoji);
+        await interaction.editReply(`${emojis.success} | Reacted to the message.`);
+    } catch (error) {
+        log('ERROR', `React slash error: ${error.message}`);
+        await interaction.editReply(`${emojis.error} | Failed to react: ${error.message}`);
+    }
+}
+
+async function handleEmojiSlash(interaction, emojisInput) {
+    const tokens = emojisInput.split(/\s+/);
+    const partsPerToken = tokens.map(token => token.split('/$/'));
+    const resolvedGroups = [];
+    const invalid = [];
+
+    for (const group of partsPerToken) {
+        const resolvedInGroup = [];
+        for (const ident of group) {
+            const emoji = await resolveEmoji(interaction.client, ident, interaction.guild);
+            if (emoji) {
+                resolvedInGroup.push(emoji.toString());
+            } else {
+                invalid.push(ident);
+            }
+        }
+        resolvedGroups.push(resolvedInGroup.join(''));
+    }
+
+    const finalString = resolvedGroups.join(' ').trim();
+
+    if (!finalString && invalid.length > 0) {
+        return await interaction.editReply(`${emojis.error} | All provided emoji identifiers were invalid!`);
+    }
+
+    if (finalString) {
+        await interaction.channel.send(finalString);
+    }
+
+    if (invalid.length > 0) {
+        await interaction.editReply(`${emojis.error} | Some emojis were invalid:\n${invalid.map(id => `• ${id}`).join('\n')}`);
+    } else {
+        await interaction.editReply(`${emojis.success} | Emoji message sent.`);
+    }
+}
+
+async function handleStealSlash(interaction, emojiInput, imageAttachment) {
+    if (!emojiInput && !imageAttachment) {
+        return await interaction.editReply(`${emojis.error} | Please provide an emoji or an image.`);
+    }
+    await interaction.editReply(`${emojis.loading} | Stealing... (full implementation not shown – adapt from prefix)`);
+}
+
+async function handleSaySlash(interaction, text, attachment) {
+    const withNewlines = text.replace(/\\n/g, '\n');
+    const { result: finalText, invalid } = await replaceEmojiPlaceholders(withNewlines, interaction.client, interaction.guild);
+    if (invalid.length > 0) {
+        return await interaction.editReply(`${emojis.error} | Invalid emoji identifiers:\n${invalid.map(id => `• ${id}`).join('\n')}`);
+    }
+
+    let files = [];
+    if (attachment) {
+        const response = await fetch(attachment.url);
+        const buffer = Buffer.from(await response.arrayBuffer());
+        files.push(new AttachmentBuilder(buffer, { name: attachment.name }));
+    }
+
+    await interaction.channel.send({ content: finalText || null, files: files.length ? files : undefined });
+    await interaction.editReply(`${emojis.success} | Message sent.`);
+}
+
+async function handlePurgeSlash(interaction, amount, all) {
+    const isOwner = interaction.user.id === ownerId;
+    const hasAdmin = interaction.member.permissions.has(PermissionsBitField.Flags.Administrator);
+
+    if (all) {
+        if (!isOwner && !hasAdmin) {
+            return await interaction.editReply(`${emojis.error} | Only administrators can purge **all** messages.`);
+        }
+        await interaction.editReply(`${emojis.loading} | Confirmation dialog not implemented here – use prefix for now.`);
+        return;
+    }
+
+    if (!amount) {
+        return await interaction.editReply(`${emojis.error} | Please specify an amount or use ` + '`all`' + `.`);
+    }
+
+    const deleteAmount = amount + 1;
+    if (deleteAmount > 100) deleteAmount = 100;
+
+    try {
+        const deleted = await interaction.channel.bulkDelete(deleteAmount, true);
+        const deletedCount = deleted.size - 1;
+        await interaction.editReply(`${emojis.success} | Deleted ${deletedCount} message${deletedCount !== 1 ? 's' : ''}.`);
+    } catch (error) {
+        log('ERROR', `Purge slash error: ${error.message}`);
+        await interaction.editReply(`${emojis.error} | Failed to purge: ${error.message}`);
+    }
+}
+
+async function handleCountSlash(interaction, subcommand, options) {
+    await interaction.editReply(`${emojis.loading} | Counting commands are available via prefix. Use \`~count help\`.`);
+}
+
+async function handleSetAvatarSlash(interaction, imageAttachment) {
+    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) && interaction.user.id !== ownerId) {
+        return await interaction.editReply(`${emojis.error} | You need \`Administrator\` permission.`);
+    }
+    if (!imageAttachment) {
+        return await interaction.editReply(`${emojis.error} | Please attach an image.`);
+    }
+
+    await interaction.editReply(`${emojis.loading} | Setting server avatar...`);
+
+    try {
+        const base64 = await imageUrlToBase64(imageAttachment.url);
+        await rest.patch(Routes.guildMember(interaction.guild.id, '@me'), { body: { avatar: base64 } });
+        await interaction.editReply(`${emojis.success} | Server avatar updated.`);
+    } catch (error) {
+        log('ERROR', `Setavatar slash error: ${error.message}`);
+        await interaction.editReply(`${emojis.error} | Failed: ${error.message}`);
+    }
+}
+
+async function handleSetBannerSlash(interaction, imageAttachment) {
+    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) && interaction.user.id !== ownerId) {
+        return await interaction.editReply(`${emojis.error} | You need \`Administrator\` permission.`);
+    }
+    if (!imageAttachment) {
+        return await interaction.editReply(`${emojis.error} | Please attach an image.`);
+    }
+
+    await interaction.editReply(`${emojis.loading} | Setting server banner...`);
+
+    try {
+        const base64 = await imageUrlToBase64(imageAttachment.url);
+        await rest.patch(Routes.guildMember(interaction.guild.id, '@me'), { body: { banner: base64 } });
+        await interaction.editReply(`${emojis.success} | Server banner updated.`);
+    } catch (error) {
+        log('ERROR', `Setbanner slash error: ${error.message}`);
+        await interaction.editReply(`${emojis.error} | Failed: ${error.message}`);
+    }
+}
+
+async function handleSetNameSlash(interaction, nickname) {
+    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) && interaction.user.id !== ownerId) {
+        return await interaction.editReply(`${emojis.error} | You need \`Administrator\` permission.`);
+    }
+    if (nickname.length > 32) {
+        return await interaction.editReply(`${emojis.error} | Nickname must be 32 characters or less.`);
+    }
+
+    await interaction.editReply(`${emojis.loading} | Changing nickname...`);
+
+    try {
+        await rest.patch(Routes.guildMember(interaction.guild.id, '@me'), { body: { nick: nickname } });
+        await interaction.editReply(`${emojis.success} | Nickname changed to **${nickname}**!`);
+    } catch (error) {
+        log('ERROR', `Setname slash error: ${error.message}`);
+        await interaction.editReply(`${emojis.error} | Failed: ${error.message}`);
+    }
+}
+
+async function handleResetProfileSlash(interaction) {
+    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) && interaction.user.id !== ownerId) {
+        return await interaction.editReply(`${emojis.error} | You need \`Administrator\` permission.`);
+    }
+
+    await interaction.editReply(`${emojis.loading} | Resetting server profile...`);
+
+    try {
+        await rest.patch(Routes.guildMember(interaction.guild.id, '@me'), {
+            body: { nick: null, avatar: null, banner: null, bio: null }
+        });
+        await interaction.editReply(`${emojis.success} | Server profile reset to global defaults.`);
+    } catch (error) {
+        log('ERROR', `Resetprofile slash error: ${error.message}`);
+        await interaction.editReply(`${emojis.error} | Failed: ${error.message}`);
+    }
+}
+
 async function handleSongQuote(context, rawText, isInteraction = false) {
     const processedText = rawText
         .replace(/\\\\n/g, '\u0000')
@@ -3404,6 +4069,7 @@ async function handleSongQuote(context, rawText, isInteraction = false) {
         await sendResponse(context, `${emojis.error} | Failed to generate song quote: ${error.message}`, isInteraction);
     }
 }
+
 async function handleQuote(context, isInteraction = false, initialOptions = {}) {
     try {
         let quotedMessage, customText, user, channel, guild, member;
@@ -4882,7 +5548,6 @@ async function handlePrefixCommand(message, cmd, args) {
 						return await message.reply(`${emojis.error} | Command "${cmdName}" not found.`);
 					}
 
-					// Use split/join instead of regex for foolproof replacement
 					const usage = details.usage.split('__PREFIX__').join(client.prefix);
 					
 					const descriptionLines = [
@@ -6526,6 +7191,81 @@ async function handlePrefixCommand(message, cmd, args) {
 					} else {
 						await message.channel.send(`${emojis.error} | Failed to change nickname: ${error.message}`);
 					}
+				}
+				break;
+			}
+			
+			case 'setbio': {
+				const isOwner = message.author.id === ownerId;
+				if (!isOwner && !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
+				}
+
+				const rawBio = args.join(' ').trim();
+				if (!rawBio) {
+					return message.reply(`${emojis.error} | Please provide bio text or "reset".`);
+				}
+				if (rawBio.toLowerCase() === 'reset') {
+					const loadingMsg = await message.channel.send(`${emojis.loading} | Resetting server profile bio...`);
+					try {
+						await rest.patch(Routes.guildMember(message.guild.id, '@me'), { body: { bio: null } });
+						await message.channel.send(`${emojis.success} | Server bio reset to global default!`);
+						setTimeout(() => loadingMsg.delete().catch(() => {}), 3000);
+					} catch (error) {
+						log('ERROR', `Setbio reset error: ${error.message}`);
+						await loadingMsg.delete().catch(() => {});
+						await message.channel.send(`${emojis.error} | Failed to reset bio: ${error.message}`);
+					}
+					break;
+				}
+				const withNewlines = rawBio.replace(/\\n/g, '\n');
+				const { result: finalBio, invalid } = await replaceEmojiPlaceholders(withNewlines, client, message.guild);
+				if (invalid.length > 0) {
+					return message.reply(`${emojis.error} | The following emoji identifiers were not found:\n${invalid.map(id => `• ${id}`).join('\n')}`);
+				}
+				if (finalBio.length > 400) {
+					return message.reply(`${emojis.error} | Bio exceeds the 400 character limit (current: ${finalBio.length} characters).`);
+				}
+
+				const loadingMsg = await message.channel.send(`${emojis.loading} | Setting server profile bio...`);
+
+				try {
+					await rest.patch(Routes.guildMember(message.guild.id, '@me'), { body: { bio: finalBio } });
+					await message.channel.send(`${emojis.success} | Server bio set to:\n> ${finalBio}`);
+					setTimeout(() => loadingMsg.delete().catch(() => {}), 3000);
+				} catch (error) {
+					log('ERROR', `Setbio error: ${error.message}`);
+					await loadingMsg.delete().catch(() => {});
+					await message.channel.send(`${emojis.error} | Failed to set bio: ${error.message}`);
+				}
+				break;
+			}
+
+			case 'resetprofile': {
+				const isOwner = message.author.id === ownerId;
+				if (!isOwner && !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
+					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
+				}
+
+				const loadingMsg = await message.channel.send(`${emojis.loading} | Resetting server profile to global defaults...`);
+
+				try {
+
+					await rest.patch(Routes.guildMember(message.guild.id, '@me'), {
+						body: {
+							nick: null,
+							avatar: null,
+							banner: null,
+							bio: null
+						}
+					});
+
+					await message.channel.send(`${emojis.success} | Server profile reset to global defaults!`);
+					setTimeout(() => loadingMsg.delete().catch(() => {}), 3000);
+				} catch (error) {
+					log('ERROR', `Resetprofile error: ${error.message}`);
+					await loadingMsg.delete().catch(() => {});
+					await message.channel.send(`${emojis.error} | Failed to reset profile: ${error.message}`);
 				}
 				break;
 			}
