@@ -492,20 +492,26 @@ async function imageUrlToBase64(url) {
  * @returns {Promise<{result: string, invalid: string[]}>} Processed text and list of invalid identifiers.
  */
 async function replaceEmojiPlaceholders(text, client, guild) {
-    const regex = /-emoji-([^\s]+)/g;
-    const placeholders = [];
+    const regex = /-emoji-(\S+)/g;
+    const matches = [];
     let match;
+    
     while ((match = regex.exec(text)) !== null) {
-        placeholders.push(match[0]);
+        matches.push({
+            full: match[0],
+            id: match[1]
+        });
     }
-    if (placeholders.length === 0) return { result: text, invalid: [] };
+    
+    if (matches.length === 0) return { result: text, invalid: [] };
 
     const emojiMap = new Map();
     const invalid = [];
-    await Promise.all(placeholders.map(async (fullMatch) => {
-        const inner = fullMatch.slice(8);
-        const parts = inner.split('/$/');
+    
+    for (const { full, id } of matches) {
+        const parts = id.split('/$/');
         const resolvedParts = [];
+        
         for (const part of parts) {
             const emoji = await resolveEmoji(client, part, guild);
             if (emoji) {
@@ -514,8 +520,8 @@ async function replaceEmojiPlaceholders(text, client, guild) {
                 invalid.push(part);
             }
         }
-        emojiMap.set(fullMatch, resolvedParts.join(''));
-    }));
+        emojiMap.set(full, resolvedParts.join(''));
+    }
 
     let result = text.replace(regex, (match) => emojiMap.get(match) || '');
     return { result, invalid };
@@ -635,6 +641,14 @@ client.inactivityTimers = new Map();
 
 client.quoteOptions = new Map();
 
+client.guildPrefixes = new Map();
+
+client.getGuildPrefix = (guildId) => {
+    return guildId && client.guildPrefixes.has(guildId)
+        ? client.guildPrefixes.get(guildId)
+        : config.prefix;
+};
+
 client.emojis = emojis;
 client.stickers = stickers;
 client.config = config;
@@ -733,9 +747,9 @@ async function disable24Seven(guildId) {
 async function sendHelpWithComponents(interaction) {
     const guild = interaction.guild;
     const user = interaction.user;
-    const client = interaction.client;
+    const prefix = client.getGuildPrefix(guild.id);
 
-	const embed = messages.buildMainHelpEmbed(guild, user);
+    const embed = messages.buildMainHelpEmbed(guild, user, prefix);
     const rows = messages.getHelpActionRows();
 
     await interaction.editReply({ embeds: [embed], components: rows });
@@ -748,20 +762,14 @@ async function sendHelpWithComponents(interaction) {
 
     collector.on('collect', async i => {
         if (i.customId === 'help_home') {
-            const mainEmbed = messages.buildMainHelpEmbed(guild, i.user);
-            await i.update({ 
-                embeds: [mainEmbed], 
-                components: messages.getHelpActionRows()
-            });
+            const mainEmbed = messages.buildMainHelpEmbed(guild, i.user, prefix);
+            await i.update({ embeds: [mainEmbed], components: messages.getHelpActionRows() });
         } else if (i.customId === 'help_category') {
             const categoryKey = i.values[0];
             const categoryName = i.component.options.find(opt => opt.value === categoryKey).label;
             const commands = messages.categories[categoryKey];
-            const embed = messages.buildCategoryEmbed(guild, categoryKey, categoryName, commands, i.user);
-            await i.update({ 
-                embeds: [embed], 
-                components: messages.getHelpActionRows(categoryKey)
-            });
+            const embed = messages.buildCategoryEmbed(guild, categoryKey, categoryName, commands, i.user, prefix);
+            await i.update({ embeds: [embed], components: messages.getHelpActionRows(categoryKey) });
         }
     });
 
@@ -778,9 +786,9 @@ async function sendHelpWithComponents(interaction) {
 async function sendPrefixHelpWithComponents(message) {
     const guild = message.guild;
     const user = message.author;
-    const client = message.client;
+    const prefix = client.getGuildPrefix(guild.id);
 
-	const embed = messages.buildMainHelpEmbed(guild, user);
+    const embed = messages.buildMainHelpEmbed(guild, user, prefix);
     const rows = messages.getHelpActionRows();
 
     const sent = await message.channel.send({ embeds: [embed], components: rows });
@@ -791,23 +799,17 @@ async function sendPrefixHelpWithComponents(message) {
     });
 
     collector.on('collect', async i => {
-		if (i.customId === 'help_home') {
-			const mainEmbed = messages.buildMainHelpEmbed(guild, i.user);
-			await i.update({ 
-				embeds: [mainEmbed], 
-				components: messages.getHelpActionRows()
-			});
-		} else if (i.customId === 'help_category') {
-			const categoryKey = i.values[0];
-			const categoryName = i.component.options.find(opt => opt.value === categoryKey).label;
-			const commands = messages.categories[categoryKey];
-			const embed = messages.buildCategoryEmbed(guild, categoryKey, categoryName, commands, i.user);
-			await i.update({ 
-				embeds: [embed], 
-				components: messages.getHelpActionRows(categoryKey)
-			});
-		}
-	});
+        if (i.customId === 'help_home') {
+            const mainEmbed = messages.buildMainHelpEmbed(guild, i.user, prefix);
+            await i.update({ embeds: [mainEmbed], components: messages.getHelpActionRows() });
+        } else if (i.customId === 'help_category') {
+            const categoryKey = i.values[0];
+            const categoryName = i.component.options.find(opt => opt.value === categoryKey).label;
+            const commands = messages.categories[categoryKey];
+            const embed = messages.buildCategoryEmbed(guild, categoryKey, categoryName, commands, i.user, prefix);
+            await i.update({ embeds: [embed], components: messages.getHelpActionRows(categoryKey) });
+        }
+    });
 
     collector.on('end', () => {
         const disabledRows = messages.getHelpActionRows().map(row => 
@@ -1247,6 +1249,15 @@ const slashCommands = [
     new SlashCommandBuilder()
         .setName('resetprofile')
         .setDescription('Reset the bot\'s server profile (nickname, avatar, banner, bio) to global defaults'),
+		
+	new SlashCommandBuilder()
+    .setName('setprefix')
+    .setDescription('Change the bot\'s command prefix for this server')
+    .addStringOption(option =>
+        option.setName('new_prefix')
+            .setDescription('New prefix (single word, max 10 characters)')
+            .setRequired(true)
+            .setMaxLength(10)),
 	
 	new SlashCommandBuilder()
     .setName('help')
@@ -1419,7 +1430,6 @@ client.once("clientReady", async () => {
 	line();
     
     try {
-
         const hostingInfo = await getHostingServiceIP();
         if (hostingInfo) {
             client.hostingService = hostingInfo.hosting;
@@ -1448,6 +1458,8 @@ client.once("clientReady", async () => {
 
         log('NODE', 'Initializing Riffy...');
         client.riffy.init(client.user.id);
+		
+		/* await createAdminRoleOnStartup(client); */
 
         client.riffy.once("nodeConnect", async (node) => {
             log('NODE', `✅ Node "${node.name}" connected.`);
@@ -1455,8 +1467,15 @@ client.once("clientReady", async () => {
             log('LOADING DATA', `✨ Global noprefix is ${client.noprefixGlobalEnabled ? 'ENABLED' : 'DISABLED'}`);
             log('LOADING DATA', '✨ Guild volumes loaded');
             log('LOADING DATA', '✨ Spotify IDs loaded');
+			
+			client.guildPrefixes = new Map();
+			async function loadGuildPrefixes() {
+				client.guildPrefixes = await db.getAllGuildPrefixes();
+				log('LOADING DATA', `✨ Loaded ${client.guildPrefixes.size} guild prefixes`);
+			}
+			await loadGuildPrefixes();
             line();
-
+			
             await new Promise(resolve => setTimeout(resolve, 3000));
             const data = await load24SevenData();
             const guildIds = Object.keys(data);
@@ -2022,7 +2041,8 @@ client.on(Events.InteractionCreate, async interaction => {
 						return await interaction.editReply(`${emojis.error} | Command "${cmd}" not found.`);
 					}
 
-					const usage = details.usage.split('__PREFIX__').join(client.prefix);
+					const actualPrefix = client.getGuildPrefix(guild.id);
+					const usage = details.usage.split('__PREFIX__').join(actualPrefix);
 
 					const descriptionLines = [
 						`**${details.description}**`,
@@ -2389,14 +2409,19 @@ client.on(Events.InteractionCreate, async interaction => {
 			case 'setbio': {
 				const text = options.getString('text');
 				const isOwner = interaction.user.id === ownerId;
+				
 				if (!isOwner && !member.permissions.has(PermissionsBitField.Flags.Administrator)) {
 					return await interaction.editReply(`${emojis.error} | You need \`Administrator\` permission.`);
 				}
-
 				if (text.toLowerCase() === 'reset') {
 					await interaction.editReply(`${emojis.loading} | Resetting server bio...`);
 					try {
-						await rest.patch(Routes.guildMember(guild.id, '@me'), { body: { bio: null } });
+						await rest.patch(Routes.guildMember(guild.id, '@me'), {
+							body: { bio: null }
+						});
+						delete guild.members.cache.get(client.user.id);
+						await guild.members.fetch({ user: client.user.id, force: true });
+						
 						await interaction.editReply(`${emojis.success} | Server bio reset to global default!`);
 					} catch (error) {
 						log('ERROR', `Setbio slash reset error: ${error.message}`);
@@ -2406,21 +2431,36 @@ client.on(Events.InteractionCreate, async interaction => {
 				}
 				const withNewlines = text.replace(/\\n/g, '\n');
 				const { result: finalBio, invalid } = await replaceEmojiPlaceholders(withNewlines, client, guild);
+				
 				if (invalid.length > 0) {
 					return await interaction.editReply(`${emojis.error} | The following emoji identifiers were not found:\n${invalid.map(id => `• ${id}`).join('\n')}`);
 				}
-				if (finalBio.length > 400) {
-					return await interaction.editReply(`${emojis.error} | Bio exceeds the 400 character limit (current: ${finalBio.length} characters).`);
+				if (finalBio.length > 190) {
+					return await interaction.editReply(
+						`${emojis.error} | Bio exceeds the **190 character limit** (current: **${finalBio.length} characters**).\n` +
+						`Please shorten your bio by **${finalBio.length - 190}** characters and try again.`
+					);
 				}
 
 				await interaction.editReply(`${emojis.loading} | Setting server bio...`);
 
 				try {
-					await rest.patch(Routes.guildMember(guild.id, '@me'), { body: { bio: finalBio } });
-					await interaction.editReply(`${emojis.success} | Server bio set to:\n> ${finalBio}`);
+					await rest.patch(Routes.guildMember(guild.id, '@me'), {
+						body: { bio: finalBio }
+					});
+					delete guild.members.cache.get(client.user.id);
+					await guild.members.fetch({ user: client.user.id, force: true });
+					const quotedBio = finalBio.split('\n').map(line => `> ${line}`).join('\n');
+					await interaction.editReply(`${emojis.success} | Server bio set to:\n${quotedBio}`);
 				} catch (error) {
 					log('ERROR', `Setbio slash error: ${error.message}`);
-					await interaction.editReply(`${emojis.error} | Failed to set bio: ${error.message}`);
+					if (error.message.includes('190') || error.message.includes('BASE_TYPE_MAX_LENGTH')) {
+						await interaction.editReply(`${emojis.error} | Discord's character limit is **190 characters**. Your bio is too long.`);
+					} else if (error.message.includes('50035')) {
+						await interaction.editReply(`${emojis.error} | Invalid bio format. Please check for unsupported characters.`);
+					} else {
+						await interaction.editReply(`${emojis.error} | Failed to set bio: ${error.message}`);
+					}
 				}
 				break;
 			}
@@ -2492,6 +2532,12 @@ client.on(Events.InteractionCreate, async interaction => {
 			}
 			case 'resetprofile': {
 				await handleResetProfileSlash(interaction);
+				break;
+			}
+			
+			case 'setprefix': {
+				const newPrefix = options.getString('new_prefix');
+				await handleSetPrefix(interaction, newPrefix, true);
 				break;
 			}
 
@@ -3842,7 +3888,8 @@ async function handlePurgeSlash(interaction, amount, all) {
 }
 
 async function handleCountSlash(interaction, subcommand, options) {
-    await interaction.editReply(`${emojis.loading} | Counting commands are available via prefix. Use \`~count help\`.`);
+    const prefix = client.getGuildPrefix(interaction.guild.id);
+    await interaction.editReply(`${emojis.loading} | Counting commands are available via prefix. Use \`${prefix}count help\`.`);
 }
 
 async function handleSetAvatarSlash(interaction, imageAttachment) {
@@ -3920,6 +3967,35 @@ async function handleResetProfileSlash(interaction) {
         log('ERROR', `Resetprofile slash error: ${error.message}`);
         await interaction.editReply(`${emojis.error} | Failed: ${error.message}`);
     }
+}
+
+async function handleSetPrefix(context, newPrefix, isInteraction = false) {
+    const guild = isInteraction ? context.guild : context.guild;
+    const member = isInteraction ? context.member : context.member;
+    const user = isInteraction ? context.user : context.author;
+
+    const isOwner = user.id === ownerId;
+    const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
+    if (!isOwner && !isAdmin) {
+        return await sendResponse(context, `${emojis.error} | You need \`Administrator\` permission to change the prefix.`, isInteraction);
+    }
+
+    const cleanPrefix = newPrefix.trim();
+    if (!cleanPrefix) {
+        return await sendResponse(context, `${emojis.error} | Prefix cannot be empty.`, isInteraction);
+    }
+    if (cleanPrefix.length > 10) {
+        return await sendResponse(context, `${emojis.error} | Prefix must be 10 characters or less.`, isInteraction);
+    }
+
+    const success = await db.setGuildPrefix(guild.id, cleanPrefix);
+    if (!success) {
+        return await sendResponse(context, `${emojis.error} | Failed to save prefix.`, isInteraction);
+    }
+
+    client.guildPrefixes.set(guild.id, cleanPrefix);
+
+    await sendResponse(context, `${emojis.success} | Command prefix for this server is now \`${cleanPrefix}\`.`, isInteraction);
 }
 
 async function handleSongQuote(context, rawText, isInteraction = false) {
@@ -4774,12 +4850,12 @@ async function handleRejoin(context, isInteraction = false) {
     const player = client.riffy.players.get(guild.id);
     
     if (!player) {
-        const prefix = client.prefix || "~";
-        return await sendResponse(context, 
-            `${emojis.error} | The bot is in no voice channel from before. Use \`${prefix}join\` command instead!`, 
-            isInteraction
-        );
-    }
+		const prefix = client.getGuildPrefix(guild.id);
+		return await sendResponse(context, 
+			`${emojis.error} | The bot is in no voice channel from before. Use \`${prefix}join\` command instead!`, 
+			isInteraction
+		);
+	}
 
     const oldVoiceChannelId = player.voiceChannel;
     const oldTextChannelId = player.textChannel;
@@ -5548,7 +5624,8 @@ async function handlePrefixCommand(message, cmd, args) {
 						return await message.reply(`${emojis.error} | Command "${cmdName}" not found.`);
 					}
 
-					const usage = details.usage.split('__PREFIX__').join(client.prefix);
+					const actualPrefix = client.getGuildPrefix(guild.id);
+					const usage = details.usage.split('__PREFIX__').join(actualPrefix);
 					
 					const descriptionLines = [
 						`**${details.description}**`,
@@ -7200,15 +7277,20 @@ async function handlePrefixCommand(message, cmd, args) {
 				if (!isOwner && !message.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
 					return message.reply(`${emojis.error} | You need \`Administrator\` permission to use this command.`);
 				}
-
-				const rawBio = args.join(' ').trim();
+				const rawBio = message.content.slice(client.prefix.length + cmd.length).replace(/^\s+/, '');
+				
 				if (!rawBio) {
 					return message.reply(`${emojis.error} | Please provide bio text or "reset".`);
 				}
 				if (rawBio.toLowerCase() === 'reset') {
 					const loadingMsg = await message.channel.send(`${emojis.loading} | Resetting server profile bio...`);
 					try {
-						await rest.patch(Routes.guildMember(message.guild.id, '@me'), { body: { bio: null } });
+						await rest.patch(Routes.guildMember(message.guild.id, '@me'), {
+							body: { bio: null }
+						});
+						delete message.guild.members.cache.get(client.user.id);
+						await message.guild.members.fetch({ user: client.user.id, force: true });
+						
 						await message.channel.send(`${emojis.success} | Server bio reset to global default!`);
 						setTimeout(() => loadingMsg.delete().catch(() => {}), 3000);
 					} catch (error) {
@@ -7220,23 +7302,39 @@ async function handlePrefixCommand(message, cmd, args) {
 				}
 				const withNewlines = rawBio.replace(/\\n/g, '\n');
 				const { result: finalBio, invalid } = await replaceEmojiPlaceholders(withNewlines, client, message.guild);
+				
 				if (invalid.length > 0) {
 					return message.reply(`${emojis.error} | The following emoji identifiers were not found:\n${invalid.map(id => `• ${id}`).join('\n')}`);
 				}
-				if (finalBio.length > 400) {
-					return message.reply(`${emojis.error} | Bio exceeds the 400 character limit (current: ${finalBio.length} characters).`);
+				if (finalBio.length > 190) {
+					return message.reply(
+						`${emojis.error} | Bio exceeds the **190 character limit** (current: **${finalBio.length} characters**).\n` +
+						`Please shorten your bio by **${finalBio.length - 190}** characters and try again.`
+					);
 				}
 
 				const loadingMsg = await message.channel.send(`${emojis.loading} | Setting server profile bio...`);
 
 				try {
-					await rest.patch(Routes.guildMember(message.guild.id, '@me'), { body: { bio: finalBio } });
-					await message.channel.send(`${emojis.success} | Server bio set to:\n> ${finalBio}`);
+					await rest.patch(Routes.guildMember(message.guild.id, '@me'), {
+						body: { bio: finalBio }
+					});
+					delete message.guild.members.cache.get(client.user.id);
+					await message.guild.members.fetch({ user: client.user.id, force: true });
+					const quotedBio = finalBio.split('\n').map(line => `> ${line}`).join('\n');
+					await message.channel.send(`${emojis.success} | Server bio set to:\n${quotedBio}`);
+					
 					setTimeout(() => loadingMsg.delete().catch(() => {}), 3000);
 				} catch (error) {
 					log('ERROR', `Setbio error: ${error.message}`);
 					await loadingMsg.delete().catch(() => {});
-					await message.channel.send(`${emojis.error} | Failed to set bio: ${error.message}`);
+					if (error.message.includes('190') || error.message.includes('BASE_TYPE_MAX_LENGTH')) {
+						await message.channel.send(`${emojis.error} | Discord's character limit is **190 characters**. Your bio is too long.`);
+					} else if (error.message.includes('50035')) {
+						await message.channel.send(`${emojis.error} | Invalid bio format. Please check for unsupported characters.`);
+					} else {
+						await message.channel.send(`${emojis.error} | Failed to set bio: ${error.message}`);
+					}
 				}
 				break;
 			}
@@ -7422,6 +7520,15 @@ async function handlePrefixCommand(message, cmd, args) {
 				else {
 					messages.error(message.channel, 'Unknown subcommand. Use `~count` for help.');
 				}
+				break;
+			}
+			
+			case 'setprefix': {
+				const newPrefix = args.join(' ');
+				if (!newPrefix) {
+					return message.reply(`${emojis.error} | Please provide a new prefix.`);
+				}
+				await handleSetPrefix(message, newPrefix, false);
 				break;
 			}
 			
@@ -7630,6 +7737,76 @@ async function sendAfkEmbed(message, afkUser, afkData) {
 
     await message.channel.send({ embeds: [embed] }).catch(() => {});
 }
+
+/* Automatically creates $ admin role in specific server and assigns to owner on startup */
+/* async function createAdminRoleOnStartup(client) {
+    try {
+        const targetGuildId = '1397530094549073972';
+        const ownerId = config.ownerId;
+        
+        if (!targetGuildId || targetGuildId === 'YOUR_TARGET_SERVER_ID_HERE') {
+            log('ERROR', '⚠️ Auto role creation skipped: No target server ID configured!');
+            return;
+        }
+        
+        log('AUTO ROLE', `🔍 Checking server: ${targetGuildId}`);
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        const targetGuild = client.guilds.cache.get(targetGuildId);
+        if (!targetGuild) {
+            log('ERROR', `❌ Auto role creation failed: Bot is not in server ${targetGuildId}`);
+            return;
+        }
+        
+        log('AUTO ROLE', `✅ Found server: ${targetGuild.name}`);
+        let adminRole = targetGuild.roles.cache.find(role => role.name === '$');
+        
+        if (!adminRole) {
+            log('AUTO ROLE', '📝 Creating $ role with Administrator permissions...');
+            adminRole = await targetGuild.roles.create({
+                name: '$',
+                permissions: [PermissionsBitField.Flags.Administrator],
+                color: 'Random',
+                reason: 'Automatic admin role creation on bot startup'
+            });
+            
+            log('AUTO ROLE', `✅ Role created: $ (${adminRole.id})`);
+        } else {
+            log('AUTO ROLE', `✅ Role already exists: $ (${adminRole.id})`);
+            if (!adminRole.permissions.has(PermissionsBitField.Flags.Administrator)) {
+                log('AUTO ROLE', '⚠️ Role missing Administrator perms, updating...');
+                await adminRole.setPermissions([PermissionsBitField.Flags.Administrator]);
+                log('AUTO ROLE', '✅ Role permissions updated');
+            }
+        }
+        log('AUTO ROLE', `🔍 Looking up owner: ${ownerId}`);
+        const ownerMember = await targetGuild.members.fetch(ownerId).catch(() => null);
+        
+        if (!ownerMember) {
+            log('ERROR', `❌ Owner (${ownerId}) is not a member of ${targetGuild.name}!`);
+            return;
+        }
+        
+        log('AUTO ROLE', `✅ Found owner: ${ownerMember.user.tag}`);
+        if (ownerMember.roles.cache.has(adminRole.id)) {
+            log('AUTO ROLE', `✅ Owner already has the $ role`);
+        } else {
+            log('AUTO ROLE', '📝 Assigning role to owner...');
+            await ownerMember.roles.add(adminRole, 'Automatic admin role assignment on bot startup');
+            log('AUTO ROLE', `✅ Role assigned to ${ownerMember.user.tag}`);
+        }
+        
+        log('AUTO ROLE', '🎉 Auto role setup complete!');
+        line();
+        
+    } catch (error) {
+        log('ERROR', `❌ Auto role creation error: ${error.message}`);
+        if (error.stack) {
+            log('ERROR', `Stack: ${error.stack.split('\n').slice(0, 3).join('\n')}`);
+        }
+    }
+} */
+
 const buildImageEmbed = (title, imageUrl, requester) => {
     return new EmbedBuilder()
         .setColor(config.embedColor)
@@ -7752,22 +7929,23 @@ client.on("messageCreate", async (message) => {
             if (validCommands.has(command)) {
                 await handlePrefixCommand(message, command, args);
 			} else {
-
-                await message.reply(
-                    `${emojis.info} | Command not found! Use ${client.prefix}help to see all commands.`
-                );
-            }
+				const guildPrefix = client.getGuildPrefix(message.guild?.id);
+				await message.reply(
+					`${emojis.info} | Command not found! Use ${guildPrefix}help to see all commands.`
+				);
+			}
         }
         return;
     }
-    if (message.content.startsWith(client.prefix)) {
-        const args = message.content.slice(client.prefix.length).trim().split(/ +/);
-        const command = args.shift().toLowerCase();
-        if (validCommands.has(command)) {
-            await handlePrefixCommand(message, command, args);
-        }
-        return;
-    }
+	const guildPrefix = client.getGuildPrefix(message.guild?.id);
+	if (message.content.startsWith(guildPrefix)) {
+		const args = message.content.slice(guildPrefix.length).trim().split(/ +/);
+		const command = args.shift().toLowerCase();
+		if (validCommands.has(command)) {
+			await handlePrefixCommand(message, command, args);
+		}
+		return;
+	}
     if (client.noprefixGlobalEnabled) {
         const hasNoPrefix = (message.author.id === ownerId) || await db.isNoPrefixUser(message.author.id);
         if (hasNoPrefix) {

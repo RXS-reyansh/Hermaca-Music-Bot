@@ -807,6 +807,48 @@ class Database {
 		return false;
 	  }
 	}
+	
+	async getAllGuildPrefixes() {
+		try {
+			await this.connect();
+			const collection = this.getPrefixedCollection('guild_prefixes');
+			const docs = await collection.find({}).toArray();
+			const map = new Map();
+			docs.forEach(doc => map.set(doc.guild_id, doc.prefix));
+			return map;
+		} catch (error) {
+			log('ERROR', `Error loading guild prefixes: ${error.message}`);
+			return new Map();
+		}
+	}
+
+	async getGuildPrefix(guildId) {
+		try {
+			await this.connect();
+			const collection = this.getPrefixedCollection('guild_prefixes');
+			const doc = await collection.findOne({ guild_id: guildId });
+			return doc ? doc.prefix : null;
+		} catch (error) {
+			log('ERROR', `Error getting guild prefix: ${error.message}`);
+			return null;
+		}
+	}
+
+	async setGuildPrefix(guildId, prefix) {
+		try {
+			await this.connect();
+			const collection = this.getPrefixedCollection('guild_prefixes');
+			await collection.updateOne(
+				{ guild_id: guildId },
+				{ $set: { prefix: prefix, updated_at: new Date() } },
+				{ upsert: true }
+			);
+			return true;
+		} catch (error) {
+			log('ERROR', `Error setting guild prefix: ${error.message}`);
+			return false;
+		}
+	}
 }
 
 module.exports = new Database();

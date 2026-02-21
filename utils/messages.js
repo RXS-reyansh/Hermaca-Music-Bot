@@ -6,64 +6,63 @@ const categories = {
   music: ['play', 'pause', 'resume', 'skip', 'stop', 'lyrics', 'queue', 'clear', 'filter', 'shuffle', 'loop', 'move', 'add', 'remove', 'volume', 'servervolume', 'nowplaying', 'status', '24/7', 'song-quote'],
   stats: ['stats', 'mystats', 'leaderboard', 'resetmystats'],
   spotify: ['setspotify', 'playspotify'],
-  vcControls: ['join', 'leave', 'rejoin', 'shift', 'disconnect', 'mute', 'unmute', 'deafen', 'undeafen'], // Changed to vcControls
+  vcControls: ['join', 'leave', 'rejoin', 'shift', 'disconnect', 'mute', 'unmute', 'deafen', 'undeafen'],
   utility: ['afk', 'avatar', 'banner', 'react', 'emoji', 'steal', 'say', 'purge', 'count'],
-  customisation: ['setavatar', 'setbanner', 'setname', 'setbio']
+  customisation: ['setavatar', 'setbanner', 'setname', 'setbio', 'resetprofile', 'setprefix']
 };
 
-function buildMainHelpEmbed(guild, user) {
-  const totalCommands = Object.values(categories).flat().length;
-  
-  // Build description lines with special handling for vcControls
-  const categoryLines = [];
-  for (const [key, cmds] of Object.entries(categories)) {
-    let categoryName;
-    if (key === 'vcControls') {
-      categoryName = 'VC Controls'; // Display as "VC Controls"
-    } else {
-      categoryName = key.charAt(0).toUpperCase() + key.slice(1);
+function buildMainHelpEmbed(guild, user, prefix) {
+    const totalCommands = Object.values(categories).flat().length;
+    
+    const categoryLines = [];
+    for (const [key, cmds] of Object.entries(categories)) {
+        let categoryName;
+        if (key === 'vcControls') {
+            categoryName = 'VC Controls';
+        } else {
+            categoryName = key.charAt(0).toUpperCase() + key.slice(1);
+        }
+        categoryLines.push(`${emojis.whitebutterfly} | **${categoryName}**`);
     }
-    categoryLines.push(`${emojis.whitebutterfly} | **${categoryName}**`);
-  }
 
-  const description = [
-    `Hey ${user} ${emojis.hearts1}`,
-    `Prefix: ${config.prefix}`,
-    `Total commands: **${totalCommands}**`,
-    '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
-    ...categoryLines,
-    '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
-    `[Invite Hermaca](https://discord.com/oauth2/authorize?client_id=${config.clientId}&permissions=8&integration_type=0&scope=applications.commands+bot)`,
-    `[Support Server](https://discord.gg/nVfAGH9G67)`,
-    '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───'
-  ].join('\n');
+    const description = [
+        `Hey ${user} ${emojis.hearts1}`,
+        `Prefix: **${prefix}**`,
+        `Total commands: **${totalCommands}**`,
+        '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
+        ...categoryLines,
+        '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
+        `[Invite Hermaca](https://discord.com/oauth2/authorize?client_id=${config.clientId}&permissions=8&integration_type=0&scope=applications.commands+bot)`,
+        `[Support Server](https://discord.gg/nVfAGH9G67)`,
+        '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───'
+    ].join('\n');
 
-  const embed = new EmbedBuilder()
-    .setColor(config.embedColor)
-    .setAuthor({ 
-      name: guild.name, 
-      iconURL: guild.iconURL() || undefined 
-    })
-    .setTitle(`${emojis.info} Help Menu`)
-    .setDescription(description)
-    .setImage("https://i.ibb.co/gLM9bMf9/standard.gif")
-    .setFooter({ text: `Select a category from the dropdown below!` });
+    const embed = new EmbedBuilder()
+        .setColor(config.embedColor)
+        .setAuthor({ 
+            name: guild.name, 
+            iconURL: guild.iconURL() || undefined 
+        })
+        .setTitle(`${emojis.info} Help Menu`)
+        .setDescription(description)
+        .setImage("https://i.ibb.co/gLM9bMf9/standard.gif")
+        .setFooter({ text: `Select a category from the dropdown below!` });
 
-  return embed;
+    return embed;
 }
 
-function buildCategoryEmbed(guild, categoryKey, categoryName, commands, user) {
-  const embed = new EmbedBuilder()
-    .setColor(config.embedColor)
-    .setAuthor({ 
-      name: `${guild.name}`, 
-      iconURL: guild.iconURL() || undefined 
-    })
-    .setTitle(`${emojis.blackcross} ${categoryName} Commands`)
-    .setDescription(commands.map(cmd => `\`${cmd}\``).join(', '))
-    .setImage("https://i.ibb.co/gLM9bMf9/standard.gif")
-    .setFooter({ text: `Use ${config.prefix}help <command-name> to know more about the command!` });
-  return embed;
+function buildCategoryEmbed(guild, categoryKey, categoryName, commands, user, prefix) {
+    const embed = new EmbedBuilder()
+        .setColor(config.embedColor)
+        .setAuthor({ 
+            name: `${guild.name}`, 
+            iconURL: guild.iconURL() || undefined 
+        })
+        .setTitle(`${emojis.blackcross} ${categoryName} Commands`)
+        .setDescription(commands.map(cmd => `\`${cmd}\``).join(', '))
+        .setImage("https://i.ibb.co/gLM9bMf9/standard.gif")
+        .setFooter({ text: `Use ${prefix}help <command-name> to know more about the command!` });
+    return embed;
 }
 
 function getHelpActionRows(currentCategory = null) {
@@ -96,7 +95,7 @@ function getHelpActionRows(currentCategory = null) {
       },
       { 
         label: 'VC Controls', 
-        value: 'vcControls', // Changed to match categories key
+        value: 'vcControls',
         emoji: emojis.greensparkles 
       },
       { 
