@@ -109,6 +109,251 @@ const prefixCommands = [
     'emma-rawr', 'suscat', 'doakes-surprise', 'setavatar', 'setav', 'setbanner',
     'setbn', 'setname', 'steal', 'emma-heart-st', 'emma-heart-st1', 'noprefix', 'nop', 'count'
 ];
+
+// Command details for specific help
+const commandDetails = {
+    play: {
+        description: "Plays a song or playlist",
+        usage: "__PREFIX__play <query>",
+        usageInfo: "The query can be a song name, YouTube URL, or Spotify URL."
+    },
+    pause: {
+        description: "Pause the current track",
+        usage: "__PREFIX__pause",
+        usageInfo: null
+    },
+    resume: {
+        description: "Resume the current track",
+        usage: "__PREFIX__resume",
+        usageInfo: null
+    },
+    skip: {
+        description: "Skip the current track",
+        usage: "__PREFIX__skip",
+        usageInfo: null
+    },
+    stop: {
+        description: "Stop playback and clear the queue",
+        usage: "__PREFIX__stop",
+        usageInfo: null
+    },
+    lyrics: {
+        description: "Show lyrics of the current track",
+        usage: "__PREFIX__lyrics",
+        usageInfo: null
+    },
+    queue: {
+        description: "Show the current queue",
+        usage: "__PREFIX__queue",
+        usageInfo: null
+    },
+    clear: {
+        description: "Clear the current queue",
+        usage: "__PREFIX__clear",
+        usageInfo: null
+    },
+    filter: {
+        description: "Add filters to playback",
+        usage: "__PREFIX__filter <type/reset/help>",
+        usageInfo: "Use argument help to know about all available filters"
+    },
+    shuffle: {
+        description: "Shuffle the current queue",
+        usage: "__PREFIX__shuffle",
+        usageInfo: null
+    },
+    loop: {
+        description: "Toggle loop mode ON or OFF",
+        usage: "__PREFIX__loop",
+        usageInfo: null
+    },
+    move: {
+        description: "Move a song in the queue",
+        usage: "__PREFIX__move <from> <to>",
+        usageInfo: "Use queue command to know the positions of song"
+    },
+    add: {
+        description: "Add a track at a specific position",
+        usage: "__PREFIX__add <song> <position>",
+        usageInfo: "Use queue command to know the positions of song"
+    },
+    remove: {
+        description: "Remove a track from queue",
+        usage: "__PREFIX__remove <position>",
+        usageInfo: "Use queue command to know the positions of song"
+    },
+    volume: {
+        description: "Adjust player volume (0-100)",
+        usage: "__PREFIX__volume <level>",
+        usageInfo: "Temporary volume for this session"
+    },
+    servervolume: {
+        description: "Set permanent volume for this server (0-100)",
+        usage: "__PREFIX__servervolume <level>",
+        usageInfo: "Saved across queue restarts in the server"
+    },
+    nowplaying: {
+        description: "Show current track info",
+        usage: "__PREFIX__nowplaying",
+        usageInfo: "Also aliases: np"
+    },
+    status: {
+        description: "Show player status",
+        usage: "__PREFIX__status",
+        usageInfo: "Shows current track, volume, loop mode"
+    },
+    "24/7": {
+        description: "Enable or disable 24/7 mode",
+        usage: "__PREFIX__24/7 enable <channel> | __PREFIX__24/7 disable",
+        usageInfo: "Bot stays in voice channel even when idle"
+    },
+    "song-quote": {
+        description: "Create a quote image with current track",
+        usage: "__PREFIX__song-quote <text>",
+        usageInfo: "Use \\n for new lines in quote"
+    },
+    stats: {
+        description: "View your or another user's music statistics",
+        usage: "__PREFIX__stats [user]",
+        usageInfo: "Leave empty for your own stats"
+    },
+    mystats: {
+        description: "View your personal music statistics across all servers",
+        usage: "__PREFIX__mystats",
+        usageInfo: null
+    },
+    leaderboard: {
+        description: "Global leaderboard of top listeners",
+        usage: "__PREFIX__leaderboard",
+        usageInfo: "Top 10 users by total plays"
+    },
+    resetmystats: {
+        description: "Reset your personal statistics (irreversible!)",
+        usage: "__PREFIX__resetmystats",
+        usageInfo: "You will be prompted to confirm"
+    },
+    setspotify: {
+        description: "Set your Spotify username for playlist access",
+        usage: "__PREFIX__setspotify <username>",
+        usageInfo: "Required for /playspotify"
+    },
+    playspotify: {
+        description: "Play your saved Spotify playlists",
+        usage: "__PREFIX__playspotify",
+        usageInfo: "Opens a selector to choose a playlist from your spotify"
+    },
+    join: {
+        description: "Make the bot join a voice channel",
+        usage: "__PREFIX__join [channel]",
+        usageInfo: "If no channel given, tries your channel or first voice channel"
+    },
+    leave: {
+        description: "Make the bot leave the voice channel",
+        usage: "__PREFIX__leave",
+        usageInfo: null
+    },
+    rejoin: {
+        description: "Make the bot leave and rejoin the current voice channel",
+        usage: "__PREFIX__rejoin",
+        usageInfo: "Useful if the bot gets stuck"
+    },
+    shift: {
+        description: "Move a user to another voice channel",
+        usage: "__PREFIX__shift [user] [channel]",
+        usageInfo: "You require Move Members permission"
+    },
+    disconnect: {
+        description: "Disconnect a user from voice channel",
+        usage: "__PREFIX__disconnect [user]",
+        usageInfo: "If no user provided then it tries to disconnect you"
+    },
+    mute: {
+        description: "Mute a user in voice channel",
+        usage: "__PREFIX__mute [user]",
+        usageInfo: "You require Mute Members permission"
+    },
+    unmute: {
+        description: "Unmute a user in voice channel",
+        usage: "__PREFIX__unmute [user]",
+        usageInfo: "You require Mute Members permission"
+    },
+    deafen: {
+        description: "Deafen a user in voice channel",
+        usage: "__PREFIX__deafen [user]",
+        usageInfo: "You require Deafen Members permission"
+    },
+    undeafen: {
+        description: "Undeafen a user in voice channel",
+        usage: "__PREFIX__undeafen [user]",
+        usageInfo: "You require Deafen Members permission"
+    },
+    afk: {
+        description: "Set your AFK status with a reason",
+        usage: "__PREFIX__afk \"<reason>\" [image]",
+        usageInfo: "Image can be an attachment or URL"
+    },
+    avatar: {
+        description: "View a user's avatar",
+        usage: "__PREFIX__avatar [user|bot|server]",
+        usageInfo: "Shows both global and server avatar if available. If not argument provided then it shows your avatar."
+    },
+    banner: {
+        description: "View a user's banner",
+        usage: "__PREFIX__banner [user|bot|server]",
+        usageInfo: "Shows both global and server banner if available. If no argument provided then it shows your banner."
+    },
+    react: {
+        description: "React to a message with an emoji",
+        usage: "__PREFIX__react <emoji>",
+        usageInfo: "Reply to a message to react to it, if not replied then the bot reacts to the latest message on the channel."
+    },
+    emoji: {
+        description: "Send emoji(s) as text",
+        usage: "__PREFIX__emoji <emoji1> <emoji2> ...",
+        usageInfo: "You can use <emoji1>/$/<emoji2> if you don't want space between the emojis"
+    },
+    steal: {
+        description: "Steal an emoji or sticker from another server",
+        usage: "__PREFIX__steal [emoji] or reply to a message with emoji/sticker/image",
+        usageInfo: "You require Manage Emojis and Stickers permission"
+    },
+    say: {
+        description: "Make the bot say something",
+        usage: "__PREFIX__say <text>",
+        usageInfo: "You can use \\n for new lines and -emoji-<id> for emojis"
+    },
+    purge: {
+        description: "Delete messages in bulk",
+        usage: "__PREFIX__purge <amount|all>",
+        usageInfo: "Max 100 at a time. 'all' clears the entire channel (admin only)"
+    },
+    count: {
+        description: "Manage the counting game",
+        usage: "__PREFIX__count <enable/disable/toggle-reset/start/calc/help>",
+        usageInfo: "See __PREFIX__count help for details"
+    },
+    setavatar: {
+        description: "Change the bot's server avatar",
+        usage: "__PREFIX__setavatar <image URL or attachment>",
+        usageInfo: "Admin only. Use argument 'reset' to revert"
+    },
+    setbanner: {
+        description: "Change the bot's server banner",
+        usage: "__PREFIX__setbanner <image URL or attachment>",
+        usageInfo: "Admin only. Use argument 'reset' to revert"
+    },
+    setname: {
+        description: "Change the bot's server nickname",
+        usage: "__PREFIX__setname <new nickname>",
+        usageInfo: "Admin only. Use argument 'reset' to revert"
+    },
+    setbio: {
+        description: "Set the bot's server bio",
+        usage: "__PREFIX__setbio <text>",
+        usageInfo: "Admin only. Use argument 'reset' to revert"
+    }
+};
+
 const validCommands = new Set(prefixCommands);
 
 let commandTimeouts = new Map();
@@ -810,8 +1055,13 @@ const slashCommands = [
 				.setRequired(false)),
 	
 	new SlashCommandBuilder()
-        .setName('help')
-        .setDescription('Show all commands'),
+    .setName('help')
+    .setDescription('Show all commands or get help for a specific command')
+    .addStringOption(option =>
+        option.setName('command')
+            .setDescription('Get help for a specific command')
+            .setRequired(false)
+            .setAutocomplete(true)),
 ].map(command => command.toJSON());
 const rest = new REST({ 
     version: '10',
@@ -1101,7 +1351,6 @@ client.once("clientReady", async () => {
 client.on(Events.InteractionCreate, async interaction => {
 
     if (interaction.type === InteractionType.ApplicationCommandAutocomplete) {
-        
         if (interaction.commandName === 'play') {
             const focusedValue = interaction.options.getFocused();
             
@@ -1137,6 +1386,23 @@ client.on(Events.InteractionCreate, async interaction => {
                 await interaction.respond([]);
             }
         }
+		
+		if (interaction.commandName === 'help') {
+			const focusedValue = interaction.options.getFocused();
+			const commandNames = Object.keys(commandDetails);
+			const filtered = commandNames.filter(name =>
+				name.toLowerCase().includes(focusedValue.toLowerCase())
+			).slice(0, 25);
+			
+			const choices = filtered.map(name => ({
+				name: name,
+				value: name
+			}));
+			
+			await interaction.respond(choices);
+			return;
+		}
+		
         return;
     }
 
@@ -1552,10 +1818,43 @@ client.on(Events.InteractionCreate, async interaction => {
                 await interaction.editReply({ embeds: [embed] });
                 break;
             }
-            case 'help': {
-			  await sendHelpWithComponents(interaction);
-			  break;
+            
+			case 'help': {
+				const specificCommand = options.getString('command');
+				if (specificCommand) {
+					const cmd = specificCommand.toLowerCase();
+					const details = commandDetails[cmd];
+					if (!details) {
+						return await interaction.editReply(`${emojis.error} | Command "${cmd}" not found.`);
+					}
+
+					// Replace __PREFIX__ with actual prefix using split and join (foolproof method)
+					const usage = details.usage.split('__PREFIX__').join(client.prefix);
+					
+					// Build description - all on one line after each label
+					const descriptionLines = [
+						`**${details.description}**`,
+						'',
+						`**Usage:** \`${usage}\``
+					];
+					
+					if (details.usageInfo) {
+						descriptionLines.push(`**Info:** ${details.usageInfo}`);
+					}
+					
+					const embed = new EmbedBuilder()
+						.setColor(config.embedColor)
+						.setTitle(`${emojis.blackbutterfly} ${cmd} command`)
+						.setDescription(descriptionLines.join('\n'))
+						.setFooter({ text: `Use ${client.prefix}help for all commands` });
+
+					await interaction.editReply({ embeds: [embed] });
+				} else {
+					await sendHelpWithComponents(interaction);
+				}
+				break;
 			}
+
             case 'setspotify': {
                 const username = options.getString('username');
                 const success = await db.setSpotifyId(interaction.user.id, username);
@@ -4575,8 +4874,37 @@ async function handlePrefixCommand(message, cmd, args) {
                 break;
             }
             
-            case 'help': {
-				await sendPrefixHelpWithComponents(message);
+			case 'help': {
+				if (args.length > 0) {
+					const cmdName = args[0].toLowerCase();
+					const details = commandDetails[cmdName];
+					if (!details) {
+						return await message.reply(`${emojis.error} | Command "${cmdName}" not found.`);
+					}
+
+					// Use split/join instead of regex for foolproof replacement
+					const usage = details.usage.split('__PREFIX__').join(client.prefix);
+					
+					const descriptionLines = [
+						`**${details.description}**`,
+						'',
+						`**Usage:** \`${usage}\``
+					];
+					
+					if (details.usageInfo) {
+						descriptionLines.push(`**Info:** ${details.usageInfo}`);
+					}
+					
+					const embed = new EmbedBuilder()
+						.setColor(config.embedColor)
+						.setTitle(`${emojis.blackbutterfly} ${cmdName} command`)
+						.setDescription(descriptionLines.join('\n'))
+						.setFooter({ text: `Use ${client.prefix}help for all commands` });
+
+					await message.channel.send({ embeds: [embed] });
+				} else {
+					await sendPrefixHelpWithComponents(message);
+				}
 				break;
 			}
             
