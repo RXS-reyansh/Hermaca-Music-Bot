@@ -1,18 +1,19 @@
 const config = require("./config.js");
 
-// Color logging utility (true color ANSI)
+// true color ANSI
 const colorMap = {
-    CLIENT: config.colorClient || '#00ff00',
-    DATABASE: config.colorDatabase || '#00ffff',
-    NODE: config.colorNode || '#ffff00',
-    'LOADING DATA': config.colorLoadingData || '#ff00ff',
-    'LOADING DATA - 24/7': config.color247 || '#ffa500',
-    OWNER: config.colorOwner || '#ff69b4',
-    BOT: config.colorBot || '#87ceeb',
-    'SERVER LIST': config.colorServerList || '#98fb98',
-    SLASH: config.colorSlash || '#ffd700',
-    'YAY!': config.colorYay || '#ff4500',
-    ERROR: config.colorError || '#ff5555',
+    CLIENT: config.colorClient,
+    DATABASE: config.colorDatabase,
+    NODE: config.colorNode,
+    'LOADING DATA': config.colorLoadingData,
+    'LOADING DATA - 24/7': config.color247,
+    OWNER: config.colorOwner,
+    BOT: config.colorBot,
+    'SERVER LIST': config.colorServerList,
+    SLASH: config.colorSlash,
+    'YAY!': config.colorYay,
+    ERROR: config.colorError,
+    LYRICS: config.colorLyrics,
 };
 
 function hexToRgb(hex) {
@@ -23,12 +24,14 @@ function hexToRgb(hex) {
         r: parseInt(result[1], 16),
         g: parseInt(result[2], 16),
         b: parseInt(result[3], 16)
-    } : null;
+    }
+     : null;
 }
 
 function colorize(text, hex) {
     const rgb = hexToRgb(hex);
-    if (!rgb) return text; // fallback
+    if (!rgb)
+        return text; // fallback
     return `\x1b[38;2;${rgb.r};${rgb.g};${rgb.b}m${text}\x1b[0m`;
 }
 
@@ -39,7 +42,8 @@ function setBotReady(value) {
 }
 
 function log(tag, message) {
-    if (botReady && tag !== 'ERROR') return; // suppress non‑errors after ready
+    if (botReady && tag !== 'ERROR' && tag !== 'LYRICS')
+        return;
     const colorHex = colorMap[tag] || '#ffffff';
     const coloredTag = colorize(`[${tag}]`, colorHex);
     console.log(`${coloredTag} ${message}`);
@@ -49,4 +53,8 @@ function line() {
     console.log('─'.repeat(60));
 }
 
-module.exports = { log, line, setBotReady };
+module.exports = {
+    log,
+    line,
+    setBotReady
+};

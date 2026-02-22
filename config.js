@@ -20,15 +20,16 @@ module.exports = {
     githubProfile: 'https://github.com/RXS-reyansh',
     githubRepo: 'https://github.com/RXS-reyansh/Hermaca-Music-Bot',
     
-    colorClient: '#D2EAF1',
-    colorDatabase: '#CB674C',
-    colorNode: '#1C0770',
-    colorLoadingData: '#CFFFE2',
-    color247: '#CFFFE2',
-    colorOwner: '#FF0000',
-    colorBot: '#FF0000',
-    colorServerList: '#FF0000',
-    colorSlash: '#FF0000',
-    colorYay: '#FF0000',
-    colorError: '#511D43'
+    colorClient: '#d2eaf1ff',
+    colorDatabase: '#cb674cff',
+    colorNode: '#4b2bccde',
+    colorLoadingData: '#cfffe2ff',
+    color247: '#cfffe2ff',
+    colorOwner: '#ff0000ff',
+    colorBot: '#ff0000ff',
+    colorServerList: '#ff7b00ff',
+    colorSlash: '#ff7b00ff',
+    colorYay: '#ff0000ff',
+    colorError: '#9b357fff',
+	colorLyrics : "#f03671"
 };
