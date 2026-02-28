@@ -1010,6 +1010,57 @@ class Database {
             log('ERROR', `Error creating lyrics TTL index: ${error.message}`);
         }
     }
+
+	async addBlacklistedUser(userId) {
+	    try {
+	        await this.connect();
+	        const collection = this.getPrefixedCollection('blacklisted_users');
+	        await collection.updateOne(
+		{ user_id: userId },
+		{ $set: { user_id: userId, addedAt: new Date() } },
+		{ upsert: true }
+	        );
+	        return true;
+	    } catch (error) {
+	        log('ERROR', `Error adding blacklisted user: ${error.message}`);
+	        return false;
+	    }
+	}
+
+	async removeBlacklistedUser(userId) {
+	    try {
+	        await this.connect();
+	        const collection = this.getPrefixedCollection('blacklisted_users');
+	        const result = await collection.deleteOne({ user_id: userId });
+	        return result.deletedCount > 0;
+	    } catch (error) {
+	        log('ERROR', `Error removing blacklisted user: ${error.message}`);
+	        return false;
+	    }
+	}
+
+	async isBlacklisted(userId) {
+	    try {
+	        await this.connect();
+	        const collection = this.getPrefixedCollection('blacklisted_users');
+	        const doc = await collection.findOne({ user_id: userId });
+	        return !!doc;
+	    } catch (error) {
+	        log('ERROR', `Error checking blacklist: ${error.message}`);
+	        return false;
+	    }
+	}
+	async getAllBlacklistedUsers() {
+	    try {
+	        await this.connect();
+	        const collection = this.getPrefixedCollection('blacklisted_users');
+	        const users = await collection.find({}).toArray();
+	        return users.map(u => u.user_id);
+	    } catch (error) {
+	        log('ERROR', `Error getting blacklisted users: ${error.message}`);
+	        return [];
+	    }
+	}
 }
 
 module.exports = new Database();

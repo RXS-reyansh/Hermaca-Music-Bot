@@ -7,6 +7,7 @@ const {
     ButtonStyle,
     StringSelectMenuBuilder
 } = require('discord.js');
+const { formatDuration, getDurationString, extractThumbnail } = require('./formatting.js');
 
 const categories = {
     music: ['play', 'pause', 'resume', 'skip', 'stop', 'lyrics', 'queue', 'clear', 'filter', 'shuffle', 'loop', 'move', 'add', 'remove', 'volume', 'servervolume', 'nowplaying', 'status', '24/7', 'song-quote'],
@@ -127,28 +128,6 @@ function getHelpActionRows(currentCategory = null) {
     const row2 = new ActionRowBuilder().addComponents(selectMenu);
     return [row1, row2];
 }
-
-function formatDuration(ms) {
-    if (!ms || ms <= 0 || ms === 'Infinity')
-        return 'LIVE';
-    const seconds = Math.floor((ms / 1000) % 60);
-    const minutes = Math.floor((ms / (1000 * 60)) % 60);
-    const hours = Math.floor(ms / (1000 * 60 * 60));
-    if (hours > 0) {
-        return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-    }
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-}
-
-function getDurationString(track) {
-    if (track.info.stream || track.info.isStream)
-        return 'LIVE';
-    const duration = track.info.length;
-    if (!duration || duration <= 0 || isNaN(duration)) {
-        return 'N/A';
-    }
-    return formatDuration(duration);
-}
 async function sendLyricsEmbeds(channel, lyrics, source, trackArtist, trackTitle, requester) {
     const MAX_LENGTH = 3150;
     const lines = lyrics.split('\n');
@@ -219,75 +198,43 @@ module.exports = {
         });
     },
 
-    nowPlaying: (channel, track) => {
-        if (!track || !track.info) {
-            return channel.send("No track is currently playing.");
-        }
+	nowPlaying: (channel, track) => {
+		if (!track || !track.info) {
+			return channel.send("No track is currently playing.");
+		}
 
-        function extractThumbnail(trackInfo) {
-            if (!trackInfo)
-                return null;
+		const embed = new EmbedBuilder()
+			.setColor(config.embedColor)
+			.setTitle(`${emojis.blacksparkles} Now Playing`)
+			.setDescription(`[${track.info.title}](${track.info.uri})`);
 
-            const possibleProps = [
-                'thumbnail', 'artworkUrl', 'cover', 'image', 'picture',
-                'thumbnailUrl', 'thumbnail_url'
-            ];
-            for (const prop of possibleProps) {
-                const val = trackInfo[prop];
-                if (val) {
-                    if (typeof val === 'string' && val.startsWith('http'))
-                        return val;
-                    if (typeof val === 'object' && val?.url?.startsWith('http'))
-                        return val.url;
-                }
-            }
+		const thumb = extractThumbnail(track.info);
+		if (thumb) {
+			embed.setThumbnail(thumb);
+		}
 
-            if (trackInfo.album?.images?.length) {
-                const img = trackInfo.album.images[0];
-                if (img?.url?.startsWith('http'))
-                    return img.url;
-            }
+		embed.addFields([{
+					name: 'Artist',
+					value: `${emojis.blackbutterfly} ${track.info.author || "Unknown"}`,
+					inline: true
+				}, {
+					name: 'Duration',
+					value: `${emojis.blackbutterfly} ${formatDuration(track.info.length)}`,
+					inline: true
+				}, {
+					name: 'Requested By',
+					value: `${emojis.blackbutterfly} ${(track.info.requester && track.info.requester.tag) || "Unknown"}`,
+					inline: true
+				}
+			])
+		.setFooter({
+			text: 'Use ~help to see all commands'
+		});
 
-            if (Array.isArray(trackInfo.artwork)) {
-                const img = trackInfo.artwork.find(a => a?.url?.startsWith('http'));
-                if (img)
-                    return img.url;
-            }
-            return null;
-        }
-
-        const embed = new EmbedBuilder()
-            .setColor(config.embedColor)
-            .setTitle(`${emojis.blacksparkles} Now Playing`)
-            .setDescription(`[${track.info.title}](${track.info.uri})`);
-
-        const thumb = extractThumbnail(track.info);
-        if (thumb) {
-            embed.setThumbnail(thumb);
-        }
-
-        embed.addFields([{
-                    name: 'Artist',
-                    value: `${emojis.blackbutterfly} ${track.info.author || "Unknown"}`,
-                    inline: true
-                }, {
-                    name: 'Duration',
-                    value: `${emojis.blackbutterfly} ${formatDuration(track.info.length)}`,
-                    inline: true
-                }, {
-                    name: 'Requested By',
-                    value: `${emojis.blackbutterfly} ${(track.info.requester && track.info.requester.tag) || "Unknown"}`,
-                    inline: true
-                }
-            ])
-        .setFooter({
-            text: 'Use ~help to see all commands'
-        });
-
-        return channel.send({
-            embeds: [embed]
-        });
-    },
+		return channel.send({
+			embeds: [embed]
+		});
+	},
 
     filterApplied: (channel, appliedFilters) => {
         const embed = new EmbedBuilder()
@@ -424,160 +371,6 @@ module.exports = {
         return channel.send(`${emojis.info} | Queue has ended.`);
     },
 
-    queueList: async(channel, queue, currentTrack, authorId) => {
-        const TRACKS_PER_PAGE = 8;
-        const totalPages = Math.ceil(queue.length / TRACKS_PER_PAGE);
-
-        if (totalPages === 0 && !currentTrack) {
-            return module.exports.error(channel, "Queue is empty!");
-        }
-
-        const allTracks = currentTrack ? [currentTrack, ...queue] : queue;
-        const totalDuration = allTracks.reduce((acc, track) => {
-            const duration = track?.info?.length;
-            if (duration && duration > 0 && !track?.info?.stream && !track?.info?.isStream) {
-                return acc + duration;
-            }
-            return acc;
-        }, 0);
-        const streamCount = queue.filter(t => t.info.isStream).length;
-        const durationText = streamCount > 0
-             ? `${formatDuration(totalDuration)} (${streamCount} streams)`
-             : formatDuration(totalDuration);
-
-        const pages = [];
-        for (let page = 1; page <= totalPages; page++) {
-            const start = (page - 1) * TRACKS_PER_PAGE;
-            const end = start + TRACKS_PER_PAGE;
-            const pageTracks = queue.slice(start, end);
-
-            const embed = new EmbedBuilder()
-                .setColor(config.embedColor)
-                .setTitle(`${emojis.star} Queue List (${queue.length} tracks)`);
-
-            if (currentTrack && page === 1) {
-                embed.setDescription(
-`**Now Playing:**\n${emojis.play} **${currentTrack.info.title}** - ${currentTrack.info.author || 'Unknown'}\n\n**Upcoming:**`);
-                if (currentTrack.info.thumbnail) {
-                    embed.setThumbnail(currentTrack.info.thumbnail);
-                }
-            }
-
-            if (pageTracks.length > 0) {
-                const tracksText = pageTracks.map((track, i) => {
-                    const title = track.info.title || 'Unknown Title';
-                    const artist = track.info.author || 'Unknown Artist';
-                    const songInfo = title.length > 28 ? title.substring(0, 25) + '...' : title;
-                    const artistInfo = artist.length > 15 ? artist.substring(0, 12) + '...' : artist;
-                    return `\`${(start + i + 1).toString().padStart(2, '0')}\` ${emojis.music} **${songInfo} - ${artistInfo}** - ${getDurationString(track)}`;
-                }).join('\n');
-
-                embed.addFields({
-                    name: '\u200b',
-                    value: tracksText.length > 1020 ? tracksText.substring(0, 1017) + '...' : tracksText
-                });
-            } else {
-                embed.addFields({
-                    name: '\u200b',
-                    value: 'No more tracks'
-                });
-            }
-
-            embed.setFooter({
-                text: `Total Duration: ${durationText} • Page ${page}/${totalPages || 1}`
-            });
-
-            pages.push(embed);
-        }
-
-        if (pages.length === 1) {
-            return channel.send({
-                embeds: [pages[0]]
-            });
-        }
-
-        const getRow = (page = 0) => {
-            const row = new ActionRowBuilder();
-            if (page > 0) {
-                row.addComponents(
-                    new ButtonBuilder()
-                    .setCustomId('queue_prev')
-                    .setLabel('Previous')
-                    .setStyle(ButtonStyle.Primary));
-            }
-            row.addComponents(
-                new ButtonBuilder()
-                .setCustomId('queue_page')
-                .setLabel(`${page + 1}/${pages.length}`)
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(true));
-            if (page < pages.length - 1) {
-                row.addComponents(
-                    new ButtonBuilder()
-                    .setCustomId('queue_next')
-                    .setLabel('Next')
-                    .setStyle(ButtonStyle.Primary));
-            }
-            return row;
-        };
-
-        const msg = await channel.send({
-            embeds: [pages[0]],
-            components: [getRow(0)]
-        });
-
-        const collector = msg.createMessageComponentCollector({
-            time: 60000
-        });
-        let currentPage = 0;
-
-        collector.on('collect', async(i) => {
-            if (i.user.id !== authorId) {
-                return i.reply({
-                    content: 'Only the command author can use these buttons!',
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-            await i.deferUpdate();
-
-            switch (i.customId) {
-            case 'queue_prev':
-                currentPage--;
-                break;
-            case 'queue_next':
-                currentPage++;
-                break;
-            }
-            currentPage = Math.max(0, Math.min(currentPage, pages.length - 1));
-
-            try {
-                await i.editReply({
-                    embeds: [pages[currentPage]],
-                    components: [getRow(currentPage)]
-                });
-            } catch (error) {
-                if (error.code === 10062 || error.code === 50027) {
-
-                    if (i.channel) {
-                        await i.channel.send({
-                            embeds: [pages[currentPage]]
-                        }).catch(() => {});
-                    }
-                } else {
-                    throw error;
-                }
-            }
-        });
-
-        collector.on('end', () => {
-            try {
-                msg.edit({
-                    components: []
-                }).catch(() => {});
-            } catch (error) {}
-        });
-    },
-
     playerStatus: (channel, player) => {
         const embed = new EmbedBuilder()
             .setColor(config.embedColor)
@@ -668,184 +461,182 @@ module.exports = {
             await channel.send(`${emojis.error} | Failed to calculate ping!`);
         }
     },
+	
+	queueList: async (context, queue, currentTrack, authorId) => {
+		const {
+			ActionRowBuilder,
+			ButtonBuilder,
+			ButtonStyle,
+			EmbedBuilder
+		} = require('discord.js');
+		const isInteraction = context.isCommand !== undefined || context.deferred !== undefined || context.replied !== undefined;
+		const channel = context.channel;
+		const QUEUE_THUMBNAIL_URL = 'https://i.ibb.co/s9V2dJ9V/21e057773026ebb6b0085befdc5db448-2.jpg';
 
-    queueListInteraction: async(interaction, queue, currentTrack, authorId) => {
-        const {
-            ActionRowBuilder,
-            ButtonBuilder,
-            ButtonStyle,
-            EmbedBuilder
-        } = require('discord.js');
+		const TRACKS_PER_PAGE = 8;
+		const totalPages = Math.ceil(queue.length / TRACKS_PER_PAGE);
+		if (totalPages === 0 && !currentTrack) {
+			const emptyEmbed = new EmbedBuilder()
+				.setColor(config.embedColor)
+				.setTitle(`${emojis.star} Queue List`)
+				.setDescription(`${emojis.error} The queue is empty!`)
+				.setThumbnail(QUEUE_THUMBNAIL_URL);
 
-        const TRACKS_PER_PAGE = 8;
-        const totalPages = Math.ceil(queue.length / TRACKS_PER_PAGE);
+			if (isInteraction) {
+				return await context.editReply({ embeds: [emptyEmbed] });
+			} else {
+				return channel.send({ embeds: [emptyEmbed] });
+			}
+		}
+		const allTracks = currentTrack ? [currentTrack, ...queue] : queue;
+		const totalDuration = allTracks.reduce((acc, track) => {
+			const duration = track?.info?.length;
+			if (duration && duration > 0 && !track?.info?.stream && !track?.info?.isStream) {
+				return acc + duration;
+			}
+			return acc;
+		}, 0);
+		const streamCount = queue.filter(t => t.info.isStream).length;
+		const durationText = streamCount > 0
+			? `${formatDuration(totalDuration)} (${streamCount} streams)`
+			: formatDuration(totalDuration);
+		const pages = [];
+		for (let page = 1; page <= totalPages; page++) {
+			const start = (page - 1) * TRACKS_PER_PAGE;
+			const end = start + TRACKS_PER_PAGE;
+			const pageTracks = queue.slice(start, end);
 
-        if (totalPages === 0 && !currentTrack) {
-            return await interaction.editReply({
-                content: `${emojis.error} | Queue is empty!`
-            });
-        }
+			const embed = new EmbedBuilder()
+				.setColor(config.embedColor)
+				.setTitle(`${emojis.star} Queue List (${queue.length} tracks)`)
+				.setThumbnail(QUEUE_THUMBNAIL_URL);
 
-        const allTracks = currentTrack ? [currentTrack, ...queue] : queue;
-        const totalDuration = allTracks.reduce((acc, track) => {
-            const duration = track?.info?.length;
-            if (duration && duration > 0 && !track?.info?.stream && !track?.info?.isStream) {
-                return acc + duration;
-            }
-            return acc;
-        }, 0);
-        const streamCount = queue.filter(t => t.info.isStream).length;
-        const durationText = streamCount > 0
-             ? `${formatDuration(totalDuration)} (${streamCount} streams)`
-             : formatDuration(totalDuration);
+			if (pageTracks.length > 0) {
+				const tracksText = pageTracks.map((track, i) => {
+					const title = track.info.title || 'Unknown Title';
+					const artist = track.info.author || 'Unknown Artist';
+					const songInfo = title.length > 28 ? title.substring(0, 25) + '...' : title;
+					const artistInfo = artist.length > 15 ? artist.substring(0, 12) + '...' : artist;
+					return `\`${(start + i + 1).toString().padStart(2, '0')}\` ${emojis.music} **${songInfo} - ${artistInfo}** - ${getDurationString(track)}`;
+				}).join('\n');
 
-        const pages = [];
-        for (let page = 1; page <= totalPages; page++) {
-            const start = (page - 1) * TRACKS_PER_PAGE;
-            const end = start + TRACKS_PER_PAGE;
-            const pageTracks = queue.slice(start, end);
+				embed.addFields({
+					name: '\u200b',
+					value: tracksText.length > 1020 ? tracksText.substring(0, 1017) + '...' : tracksText
+				});
+			} else {
+				embed.addFields({
+					name: '\u200b',
+					value: 'No more tracks'
+				});
+			}
 
-            const embed = new EmbedBuilder()
-                .setColor(config.embedColor)
-                .setTitle(`${emojis.star} Queue List (${queue.length} tracks)`);
+			embed.setFooter({
+				text: `Total Duration: ${durationText} • Page ${page}/${totalPages}`
+			});
 
-            if (currentTrack && page === 1) {
-                embed.setDescription(
-`**Now Playing:**\n${emojis.play} **${currentTrack.info.title}** - ${currentTrack.info.author || 'Unknown'}\n\n**Upcoming:**`);
-                if (currentTrack.info.thumbnail) {
-                    embed.setThumbnail(currentTrack.info.thumbnail);
-                }
-            }
+			pages.push(embed);
+		}
+		const getRow = (page = 0) => {
+			const row = new ActionRowBuilder();
+			if (page > 0) {
+				row.addComponents(
+					new ButtonBuilder()
+						.setCustomId('queue_prev')
+						.setLabel('Previous')
+						.setStyle(ButtonStyle.Primary)
+				);
+			}
+			row.addComponents(
+				new ButtonBuilder()
+					.setCustomId('queue_page')
+					.setLabel(`${page + 1}/${pages.length}`)
+					.setStyle(ButtonStyle.Secondary)
+					.setDisabled(true)
+			);
+			if (page < pages.length - 1) {
+				row.addComponents(
+					new ButtonBuilder()
+						.setCustomId('queue_next')
+						.setLabel('Next')
+						.setStyle(ButtonStyle.Primary)
+				);
+			}
+			return row;
+		};
+		let msg;
+		try {
+			if (isInteraction) {
+				msg = await context.editReply({
+					embeds: [pages[0]],
+					components: pages.length > 1 ? [getRow(0)] : []
+				});
+			} else {
+				msg = await channel.send({
+					embeds: [pages[0]],
+					components: pages.length > 1 ? [getRow(0)] : []
+				});
+			}
+		} catch (error) {
+			if (error.code === 10062 || error.code === 50027) {
+				return await channel.send({
+					embeds: [pages[0]],
+					components: pages.length > 1 ? [getRow(0)] : []
+				});
+			}
+			throw error;
+		}
+		if (pages.length === 1) {
+			return msg;
+		}
+		const collector = msg.createMessageComponentCollector({ time: 60000 });
+		let currentPage = 0;
 
-            if (pageTracks.length > 0) {
-                const tracksText = pageTracks.map((track, i) => {
-                    const title = track.info.title || 'Unknown Title';
-                    const artist = track.info.author || 'Unknown Artist';
-                    const songInfo = title.length > 28 ? title.substring(0, 25) + '...' : title;
-                    const artistInfo = artist.length > 15 ? artist.substring(0, 12) + '...' : artist;
-                    return `\`${(start + i + 1).toString().padStart(2, '0')}\` ${emojis.music} **${songInfo} - ${artistInfo}** - ${getDurationString(track)}`;
-                }).join('\n');
+		collector.on('collect', async (i) => {
+			if (i.user.id !== authorId) {
+				return i.reply({
+					content: 'Only the command author can use these buttons!',
+					flags: MessageFlags.Ephemeral
+				});
+			}
+			await i.deferUpdate();
 
-                embed.addFields({
-                    name: '\u200b',
-                    value: tracksText.length > 1020 ? tracksText.substring(0, 1017) + '...' : tracksText
-                });
-            } else {
-                embed.addFields({
-                    name: '\u200b',
-                    value: 'No more tracks'
-                });
-            }
+			switch (i.customId) {
+				case 'queue_prev':
+					currentPage--;
+					break;
+				case 'queue_next':
+					currentPage++;
+					break;
+			}
+			currentPage = Math.max(0, Math.min(currentPage, pages.length - 1));
 
-            embed.setFooter({
-                text: `Total Duration: ${durationText} • Page ${page}/${totalPages || 1}`
-            });
+			try {
+				await i.editReply({
+					embeds: [pages[currentPage]],
+					components: [getRow(currentPage)]
+				});
+			} catch (error) {
+				if (error.code === 10062 || error.code === 50027) {
+					await channel.send({
+						embeds: [pages[currentPage]]
+					}).catch(() => {});
+				} else {
+					throw error;
+				}
+			}
+		});
 
-            pages.push(embed);
-        }
+		collector.on('end', () => {
+			try {
+				msg.edit({ components: [] }).catch(() => {});
+			} catch (error) {}
+		});
 
-        if (pages.length === 1) {
-            return await interaction.editReply({
-                embeds: [pages[0]]
-            });
-        }
+		return msg;
+	},
 
-        const getRow = (page = 0) => {
-            const row = new ActionRowBuilder();
-            if (page > 0) {
-                row.addComponents(
-                    new ButtonBuilder()
-                    .setCustomId('queue_prev')
-                    .setLabel('Previous')
-                    .setStyle(ButtonStyle.Primary));
-            }
-            row.addComponents(
-                new ButtonBuilder()
-                .setCustomId('queue_page')
-                .setLabel(`${page + 1}/${pages.length}`)
-                .setStyle(ButtonStyle.Secondary)
-                .setDisabled(true));
-            if (page < pages.length - 1) {
-                row.addComponents(
-                    new ButtonBuilder()
-                    .setCustomId('queue_next')
-                    .setLabel('Next')
-                    .setStyle(ButtonStyle.Primary));
-            }
-            return row;
-        };
-
-        let msg;
-        try {
-            msg = await interaction.editReply({
-                embeds: [pages[0]],
-                components: [getRow(0)]
-            });
-        } catch (error) {
-            if (error.code === 10062 || error.code === 50027) {
-
-                msg = await interaction.channel.send({
-                    embeds: [pages[0]],
-                    components: [getRow(0)]
-                });
-            } else {
-                throw error;
-            }
-        }
-
-        const collector = msg.createMessageComponentCollector({
-            time: 60000
-        });
-        let currentPage = 0;
-
-        collector.on('collect', async(i) => {
-            if (i.user.id !== authorId) {
-                return i.reply({
-                    content: 'Only the command author can use these buttons!',
-                    flags: MessageFlags.Ephemeral
-                });
-            }
-            await i.deferUpdate();
-
-            switch (i.customId) {
-            case 'queue_prev':
-                currentPage--;
-                break;
-            case 'queue_next':
-                currentPage++;
-                break;
-            }
-            currentPage = Math.max(0, Math.min(currentPage, pages.length - 1));
-
-            try {
-                await i.editReply({
-                    embeds: [pages[currentPage]],
-                    components: [getRow(currentPage)]
-                });
-            } catch (error) {
-                if (error.code === 10062 || error.code === 50027) {
-
-                    if (i.channel) {
-                        await i.channel.send({
-                            embeds: [pages[currentPage]]
-                        }).catch(() => {});
-                    }
-                } else {
-                    throw error;
-                }
-            }
-        });
-
-        collector.on('end', () => {
-            try {
-                msg.edit({
-                    components: []
-                }).catch(() => {});
-            } catch (error) {}
-        });
-    },
-
-    sendInteractionReply: async(interaction, content, ephemeral = false) => {
+	sendInteractionReply: async(interaction, content, ephemeral = false) => {
         if (interaction.deferred || interaction.replied) {
             return await interaction.followUp(content);
         } else {
@@ -1093,22 +884,26 @@ module.exports = {
                             for (let idx = 0; idx < allTracks.length; idx += CONCURRENCY_LIMIT) {
                                 const chunk = allTracks.slice(idx, idx + CONCURRENCY_LIMIT);
                                 const resolvedTracks = await Promise.all(chunk.map(async(trackData) => {
-                                            try {
-                                                const res = await client.riffy.resolve({
-                                                    query: trackData.uri,
-                                                    requester: i.user
-                                                });
-                                                return res.tracks?.[0] || null;
-                                            } catch {
-                                                return null;
-                                            }
-                                        }));
-                                resolvedTracks.forEach(t => {
-                                    if (t) {
-                                        player.queue.add(t);
-                                        addedCount++;
-                                    }
-                                });
+									try {
+										const res = await client.riffy.resolve({
+											query: trackData.uri,
+											requester: i.user
+										});
+										const track = res.tracks?.[0] || null;
+										if (track && trackData.thumbnail) {
+											track.info.thumbnail = trackData.thumbnail;
+										}
+										return track;
+									} catch {
+										return null;
+									}
+								}));
+								resolvedTracks.forEach((t, idx) => {
+									if (t) {
+										player.queue.add(t);
+										addedCount++;
+									}
+								});
                                 if (idx + CONCURRENCY_LIMIT < allTracks.length) {
                                     await new Promise(r => setTimeout(r, 30));
                                 }

@@ -24,7 +24,7 @@ async function getSpotifyAccessToken() {
         
         accessToken = response.data.access_token;
         tokenExpires = Date.now() + (response.data.expires_in * 1000) - 60000; // 1 minute buffer
-        console.log('✅ Spotify access token refreshed');
+        /* console.log('✅ Spotify access token refreshed'); */
         return accessToken;
     } catch (error) {
         console.error('❌ Failed to get Spotify access token:', error.response?.data || error.message);
@@ -137,7 +137,7 @@ async function getAllPlaylistTracks(playlistId) {
             url = response.data.next;
         }
         
-        console.log(`✅ Fetched ${tracks.length} tracks from Spotify playlist ${playlistId}`);
+        /* console.log(`✅ Fetched ${tracks.length} tracks from Spotify playlist ${playlistId}`); */
         return tracks;
     } catch (error) {
         console.error('❌ Error fetching Spotify playlist tracks:', error.response?.data || error.message);
