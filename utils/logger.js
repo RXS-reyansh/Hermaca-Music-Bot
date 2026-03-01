@@ -1,4 +1,4 @@
-const config = require("./config.js");
+const config = require("../config.js");
 
 // true color ANSI
 const colorMap = {
@@ -14,6 +14,7 @@ const colorMap = {
     'YAY!': config.colorYay,
     ERROR: config.colorError,
     LYRICS: config.colorLyrics,
+    STATUS: config.colorStatus,
 };
 
 function hexToRgb(hex) {

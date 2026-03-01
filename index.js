@@ -59,7 +59,7 @@ const {
     log,
     line,
     setBotReady
-} = require('./logger.js');
+} = require('./utils/logger.js');
 
 const ownerId = config.ownerId;
 const token = process.env.DISCORD_TOKEN || config.botToken;
@@ -91,9 +91,7 @@ const {
     StringSelectMenuBuilder,
     ComponentType
 } = require("discord.js");
-const {
-    Riffy
-} = require("riffy");
+const { Riffy } = require("riffy");
 const {
     Spotify
 } = require("riffy-spotify");
@@ -511,7 +509,8 @@ async function imageUrlToBase64(url) {
  * @returns {Promise<{result: string, invalid: string[]}>} Processed text and list of invalid identifiers.
  */
 async function replaceEmojiPlaceholders(text, client, guild) {
-    const regex = /-emoji-(\S+)/g;
+
+    const regex = /-emoji-([^\s]+)/g;
     const matches = [];
     let match;
 
@@ -529,9 +528,11 @@ async function replaceEmojiPlaceholders(text, client, guild) {
     const invalid = [];
 
     for (const { full, id } of matches) {
+
         if (id.includes('/$/')) {
             const parts = id.split('/$/');
             const resolvedParts = [];
+            let hasInvalid = false;
             
             for (const part of parts) {
                 const emoji = await resolveEmoji(client, part, guild);
@@ -539,10 +540,16 @@ async function replaceEmojiPlaceholders(text, client, guild) {
                     resolvedParts.push(emoji.toString());
                 } else {
                     invalid.push(part);
+                    hasInvalid = true;
                 }
             }
-            emojiMap.set(full, resolvedParts.join(''));
+            
+
+            if (resolvedParts.length > 0) {
+                emojiMap.set(full, resolvedParts.join(''));
+            }
         } else {
+
             const emoji = await resolveEmoji(client, id, guild);
             if (emoji) {
                 emojiMap.set(full, emoji.toString());
@@ -552,7 +559,12 @@ async function replaceEmojiPlaceholders(text, client, guild) {
         }
     }
 
-    let result = text.replace(regex, (match) => emojiMap.get(match) || '');
+
+    let result = text;
+    for (const [placeholder, resolved] of emojiMap) {
+        result = result.replace(placeholder, resolved);
+    }
+    
     return { result, invalid };
 }
 
@@ -1418,97 +1430,101 @@ async function registerSlashCommands() {
         }
     }
 }
+
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+
+async function isInviteValid(code) {
+    if (!code || ['N/A', 'PERMISSION_DENIED', 'NO_CHANNEL', 'ERROR'].includes(code)) return false;
+    try {
+        await client.fetchInvite(code);
+        return true;
+    } catch (error) {
+
+        if (error.status === 404) return false;
+
+        return false;
+    }
+}
+
+
+function findInviteChannel(guild) {
+    let channel = guild.channels.cache.find(ch =>
+        (ch.type === 0 || ch.type === 2) &&
+        ch.permissionsFor(guild.members.me).has('CreateInstantInvite') &&
+        ch.viewable
+    );
+    if (!channel) {
+
+        channel = guild.channels.cache.find(ch => ch.type === 0 && ch.viewable);
+    }
+    return channel;
+}
+
 async function updateServerInvites() {
     const serversData = await loadServersData();
     const guilds = client.guilds.cache;
 
     for (const guild of guilds.values()) {
+        let updated = false;
+        let newCode = null;
+
+
         if (!serversData[guild.id]) {
             serversData[guild.id] = {
                 name: guild.name,
                 inviteCode: null
             };
+        }
 
-            try {
-                let channel = null;
 
-                if (guild.systemChannel && guild.systemChannel.permissionsFor(guild.members.me).has('CreateInstantInvite')) {
-                    channel = guild.systemChannel;
-                }
+        if (serversData[guild.id].name !== guild.name) {
+            serversData[guild.id].name = guild.name;
+            updated = true;
+        }
 
-                if (!channel) {
-                    channel = guild.channels.cache.find(ch =>
-                            (ch.type === 0 || ch.type === 2) &&
-                            ch.permissionsFor(guild.members.me).has('CreateInstantInvite') &&
-                            ch.viewable);
-                }
+        const storedCode = serversData[guild.id].inviteCode;
+        const isValid = await isInviteValid(storedCode);
 
-                if (!channel) {
-                    channel = guild.channels.cache.find(ch =>
-                            ch.type === 0 &&
-                            ch.viewable);
-                }
 
-                if (channel) {
-                    log('SERVER LIST', `Creating invite for ${guild.name} in channel: ${channel.name}`);
-
+        if (!isValid) {
+            const channel = findInviteChannel(guild);
+            if (channel) {
+                try {
                     const invite = await channel.createInvite({
                         maxAge: 0,
                         maxUses: 0,
-                        reason: 'Server list invite'
-                    }).catch(error => {
-                        log('ERROR', `Failed to create invite for ${guild.name}: ${error.message}`);
-                        return null;
+                        reason: storedCode ? 'Previous invite deleted – creating new one' : 'Server list invite'
                     });
+                    newCode = invite.code;
+                    serversData[guild.id].inviteCode = newCode;
+                    updated = true;
 
-                    if (invite) {
-                        serversData[guild.id].inviteCode = invite.code;
-                        log('SERVER LIST', `Created invite for ${guild.name}: ${invite.code}`);
-                    } else {
-                        serversData[guild.id].inviteCode = 'PERMISSION_DENIED';
-                    }
-                } else {
-                    serversData[guild.id].inviteCode = 'NO_CHANNEL';
-                    log('SERVER LIST', `No suitable channel found for ${guild.name}`);
+                    const message = storedCode
+                        ? `Previous invite code deleted in server ${guild.name}. New invite: https://discord.gg/${newCode}`
+                        : `Created invite for ${guild.name}: ${newCode}`;
+                    log('SERVER LIST', message);
+                } catch (error) {
+                    log('ERROR', `Failed to create invite for ${guild.name}: ${error.message}`);
+                    serversData[guild.id].inviteCode = 'ERROR';
+                    updated = true;
                 }
-            } catch (error) {
-                log('ERROR', `Error creating invite for ${guild.name}: ${error.message}`);
-                serversData[guild.id].inviteCode = 'ERROR';
-            }
-        } else if (serversData[guild.id].name !== guild.name) {
-            serversData[guild.id].name = guild.name;
-
-            if (!serversData[guild.id].inviteCode ||
-                serversData[guild.id].inviteCode === 'N/A' ||
-                serversData[guild.id].inviteCode === 'PERMISSION_DENIED' ||
-                serversData[guild.id].inviteCode === 'NO_CHANNEL' ||
-                serversData[guild.id].inviteCode === 'ERROR') {
-
-                try {
-                    let channel = guild.channels.cache.find(ch =>
-                            (ch.type === 0 || ch.type === 2) &&
-                            ch.permissionsFor(guild.members.me).has('CreateInstantInvite') &&
-                            ch.viewable);
-
-                    if (channel) {
-                        const invite = await channel.createInvite({
-                            maxAge: 0,
-                            maxUses: 0,
-                            reason: 'Server list invite update'
-                        }).catch(() => null);
-
-                        if (invite) {
-                            serversData[guild.id].inviteCode = invite.code;
-                            log('SERVER LIST', `Updated invite for ${guild.name}: ${invite.code}`);
-                        }
-                    }
-                } catch (error) {}
+            } else {
+                serversData[guild.id].inviteCode = 'NO_CHANNEL';
+                updated = true;
             }
         }
+
+
+        if (updated) await sleep(500);
     }
+
 
     const currentGuildIds = guilds.map(g => g.id);
     await db.cleanupOldServers(currentGuildIds);
+
+
     await saveServersData(serversData);
     return serversData;
 }
@@ -1650,8 +1666,17 @@ client.once("clientReady", async() => {
 
             await registerSlashCommands();
 
-			client.statusManager = new StatusManager(client, config);
+            client.statusManager = new StatusManager(client, config);
 			await client.statusManager.setPresence();
+
+
+            setInterval(async () => {
+                try {
+                    await updateServerInvites();
+                } catch (error) {
+                    log('ERROR', `❌ Periodic invite check failed: ${error.message}`);
+                }
+            }, 5 * 60 * 1000);
 
             log('YAY!', '🎯 Bot fully initialized and ready!');
             line();
@@ -3834,6 +3859,8 @@ async function handleStats(context, targetUser, isInteraction = false) {
 async function resolveEmoji(client, identifier, guild = null) {
     let emoji = null;
     let emojiId = null;
+
+
     const customEmojiRegex = /^<a?:\w+:(\d+)>$/;
     const match = identifier.match(customEmojiRegex);
 
@@ -3843,51 +3870,57 @@ async function resolveEmoji(client, identifier, guild = null) {
         emojiId = identifier;
     }
 
-    if (emojiId) {
-        emoji = client.emojis.cache.get(emojiId);
+    if (emojiId) {        if (guild) {
+            emoji = guild.emojis.cache.get(emojiId);
+            if (!emoji) {
+                try {
+                    emoji = await guild.emojis.fetch(emojiId);
+                    if (emoji) client.emojis.cache.set(emojiId, emoji);
+                } catch { /* ignore */ }
+            }
+        }
+
+
+        if (!emoji) {
+            emoji = client.emojis.cache.get(emojiId);
+        }
+
+
         if (!emoji) {
             for (const g of client.guilds.cache.values()) {
+                if (guild && g.id === guild.id) continue;
+                emoji = g.emojis.cache.get(emojiId);
+                if (emoji) {
+                    client.emojis.cache.set(emojiId, emoji);
+                    break;
+                }
                 try {
-                    const fetched = await g.emojis.fetch(emojiId).catch(() => null);
-                    if (fetched) {
-                        emoji = fetched;
-                        client.emojis.cache.set(emojiId, fetched);
+                    emoji = await g.emojis.fetch(emojiId);
+                    if (emoji) {
+                        client.emojis.cache.set(emojiId, emoji);
                         break;
                     }
-                } catch {}
+                } catch { /* ignore */ }
             }
         }
     } else {
+
         const nameLower = identifier.toLowerCase();
+
         if (guild) {
             emoji = guild.emojis.cache.find(e => e.name.toLowerCase() === nameLower);
         }
+
         if (!emoji) {
             for (const g of client.guilds.cache.values()) {
-                const found = g.emojis.cache.find(e => e.name.toLowerCase() === nameLower);
-                if (found) {
-                    emoji = found;
-                    break;
-                }
-            }
-        }
-        if (!emoji) {
-            for (const g of client.guilds.cache.values()) {
-                try {
-                    await g.emojis.fetch();
-                    const found = g.emojis.cache.find(e => e.name.toLowerCase() === nameLower);
-                    if (found) {
-                        emoji = found;
-                        break;
-                    }
-                } catch {}
+                emoji = g.emojis.cache.find(e => e.name.toLowerCase() === nameLower);
+                if (emoji) break;
             }
         }
     }
-    
+
     return emoji;
 }
-
 async function sendStickerMessage(channel, stickerId, replyTo = null) {
     try {
 
@@ -7355,7 +7388,7 @@ async function handlePrefixCommand(message, cmd, args) {
             if (placeholders.length > 0) {
                 const emojiMap = new Map();
                 await Promise.all(placeholders.map(async(fullMatch) => {
-                        const inner = fullMatch.slice(8);
+                        const inner = fullMatch.slice(7);
                         const parts = inner.split('/$/');
                         const resolvedParts = [];
                         for (const part of parts) {
@@ -8635,6 +8668,8 @@ async function handlePrefixCommand(message, cmd, args) {
             }
             break;
         }
+
+        /* Too miscellaneous to be included */
     }
 }
 

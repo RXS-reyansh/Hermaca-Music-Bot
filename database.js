@@ -3,7 +3,7 @@ const {
 } = require('mongodb');
 const {
     log
-} = require('./logger.js');
+} = require('./utils/logger.js');
 
 class Database {
     constructor() {

@@ -1,7 +1,7 @@
 module.exports = {
     botToken: process.env.DISCORD_TOKEN,
     clientId: process.env.DISCORD_CLIENT_ID,
-    prefix: "$!",
+    prefix: "~",
     ownerId: '922491166149214218',
     embedColor: "#b4f8c8",
     spotify: {
@@ -30,9 +30,10 @@ module.exports = {
     colorBot: '#ff0000',
     colorServerList: '#ff7b00',
     colorSlash: '#ff7b00',
-    colorYay: '#ff0000',
-    colorError: '#9b357f',
+    colorError: '#c147a1',
     colorLyrics: "#f03671",
+    colorStatus: '#249bf0',
+    colorYay: '#249bf0',
 
     // different presence for each bot :)
     botInstances: {

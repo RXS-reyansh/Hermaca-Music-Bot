@@ -1,4 +1,5 @@
 const { ActivityType } = require('discord.js');
+const { log } = require('./logger.js');
 
 class StatusManager {
     constructor(client, config) {
@@ -88,7 +89,7 @@ class StatusManager {
 
         await this.client.user.setPresence(presenceData);
         
-        console.log(`[STATUS] ${this.botInstance.name}: "${formattedName}" (${presenceConfig.type})`);
+        log('STATUS', `${this.botInstance.name}: "${formattedName}" (${presenceConfig.type})`);
     }
 }
 
