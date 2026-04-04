@@ -15,6 +15,7 @@ const colorMap = {
     ERROR: config.colorError,
     LYRICS: config.colorLyrics,
     STATUS: config.colorStatus,
+    LOADER: config.colorLoader,
 };
 
 function hexToRgb(hex) {

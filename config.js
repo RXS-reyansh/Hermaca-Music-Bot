@@ -4,6 +4,9 @@ module.exports = {
     prefix: "~",
     ownerId: '922491166149214218',
     embedColor: "#b4f8c8",
+    fakeLowerCpuUsage: 3.0,  // Minimum fallback CPU% if real value unavailable
+    fakeUpperCpuUsage: 5.0,  // Maximum fallback CPU% if real value unavailable
+    minTotalRamMB: 10240,    // Minimum total RAM in MB (10GB) for display
     spotify: {
         clientId: process.env.SPOTIFY_CLIENT_ID,
         clientSecret: process.env.SPOTIFY_CLIENT_SECRET
@@ -11,6 +14,7 @@ module.exports = {
     nodes: [    
         {
             host: "lavalinkv4.serenetia.com",
+            version: "4.0.0",
             port: 80,
             secure: false,
             password: "https://dsc.gg/ajidevserver",
@@ -32,6 +36,7 @@ module.exports = {
     colorSlash: '#ff7b00',
     colorError: '#c147a1',
     colorLyrics: "#f03671",
+    colorLoader: '#249bf0',
     colorStatus: '#249bf0',
     colorYay: '#249bf0',
 
@@ -39,6 +44,9 @@ module.exports = {
     botInstances: {
         Main: {
             clientId: '923476129623453777',
+            displayServerCount: 45,
+            displayUserCount: 6700,
+            buildName: "Hermaca",
             presence: {
                 name: '/help | 45 Guilds | 6.7k Users',
                 type: 'Listening',
@@ -63,6 +71,7 @@ module.exports = {
         },
         Beta: {
             clientId: '1442787596131373166',
+            buildName: "BETA version of Hermaca",
             presence: {
                 name: 'BETA Version of Hermaca',
                 type: 'Playing',

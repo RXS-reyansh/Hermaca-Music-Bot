@@ -1,6 +1,7 @@
 module.exports = {
 	success: "<a:black_tick:1471741240612487219>",
 	greentick: "a:greentick:1473316237093376060>",
+	greentick1: "<a:greentick1:1489866447491694825>",
 	error: "<a:cross:1471741638203408454>",
 	calculus: "<:calculus:1473326503931412540> ",
 	music: "<a:blackstar:1457639037803434037>",
@@ -36,5 +37,6 @@ module.exports = {
 	lustforlife: "<a:LustForLife_VINYL:1472208566395076711>",
 	chemtrails_grey: "<a:ChemtrailsGrey_VINYL:1472208567921545301>",
 	blackcross: "<a:black_cross:1474488000917536780>",
-	SabrinaFU: '<a:Sabrina_FuckYou:1472411417448546304>'
+	SabrinaFU: '<a:Sabrina_FuckYou:1472411417448546304>',
+	whitearrow: "<:white_arrow:1489612642523025458>"
 }; 

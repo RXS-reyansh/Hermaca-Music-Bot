@@ -1,5 +1,5 @@
 const Genius = require("genius-lyrics");
-const db = require("../database.js");
+const db = require("../database/database.js");
 
 // Parse GENIUS_TOKEN into array of { token, name }
 const GENIUS_TOKENS = (process.env.GENIUS_TOKEN || '')

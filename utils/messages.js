@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const emojis = require('../emojis.js');
 const config = require('../config.js');
 const {
@@ -5,24 +7,104 @@ const {
     ActionRowBuilder,
     ButtonBuilder,
     ButtonStyle,
-    StringSelectMenuBuilder
+    StringSelectMenuBuilder,
+    StringSelectMenuOptionBuilder,
+    MessageFlags
 } = require('discord.js');
 const { formatDuration, getDurationString, extractThumbnail } = require('./formatting.js');
 
-const categories = {
-    music: ['play', 'pause', 'resume', 'skip', 'stop', 'lyrics', 'queue', 'clear', 'filter', 'shuffle', 'loop', 'move', 'add', 'remove', 'volume', 'servervolume', 'nowplaying', 'status', '24/7', 'song-quote'],
-    stats: ['stats', 'mystats', 'leaderboard', 'resetmystats'],
-    spotify: ['setspotify', 'playspotify'],
-    vcControls: ['join', 'leave', 'rejoin', 'shift', 'disconnect', 'mute', 'unmute', 'deafen', 'undeafen'],
-    utility: ['afk', 'avatar', 'banner', 'react', 'emoji', 'steal', 'say', 'purge', 'count'],
-    customisation: ['setavatar', 'setbanner', 'setname', 'setbio', 'resetprofile', 'setprefix']
+// ------------------- DYNAMIC CATEGORIES -------------------
+// Folders that map directly to category keys
+const CATEGORY_MAP = {
+    music: 'music',
+    stats: 'stats',
+    spotify: 'spotify',
+    vcControls: 'vcControls',
+    utility: 'utility',
+    customisation: 'customisation',
+    '24-7': 'music'      // 24-7 commands belong to music category
 };
 
+// Folders to ignore completely
+const IGNORED_FOLDERS = new Set(['developer', 'stupidity', 'filters']);
+
+// Commands to exclude by filename (without .js)
+const EXCLUDED_COMMANDS = new Set(['steal']);
+
+let cachedCategories = null;
+
+/**
+ * Scans the commands directory and builds a categories object:
+ * { categoryKey: [commandName1, commandName2, ...] }
+ */
+function loadDynamicCategories() {
+    if (cachedCategories) return cachedCategories;
+
+    const categories = {
+        music: [],
+        stats: [],
+        spotify: [],
+        vcControls: [],
+        utility: [],
+        customisation: []
+    };
+
+    const commandsDir = path.join(__dirname, '..', 'commands');
+    if (!fs.existsSync(commandsDir)) {
+        console.warn('Commands directory not found! Using empty categories.');
+        cachedCategories = categories;
+        return categories;
+    }
+
+    const subdirs = fs.readdirSync(commandsDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => dirent.name);
+
+    for (const subdir of subdirs) {
+        if (IGNORED_FOLDERS.has(subdir)) continue;
+
+        const category = CATEGORY_MAP[subdir];
+        if (!category) continue; // unknown folder – ignore
+
+        const folderPath = path.join(commandsDir, subdir);
+        const files = fs.readdirSync(folderPath).filter(f => f.endsWith('.js'));
+
+        for (const file of files) {
+            const commandNameRaw = path.basename(file, '.js');
+            if (EXCLUDED_COMMANDS.has(commandNameRaw)) continue;
+
+            let commandName = commandNameRaw;
+            // Try to load the command file to get the real exported name
+            try {
+                const cmd = require(path.join(folderPath, file));
+                if (cmd && typeof cmd.name === 'string' && cmd.name.trim()) {
+                    commandName = cmd.name;
+                }
+            } catch (err) {
+                // Fallback to filename if require fails
+                console.warn(`Could not load command ${file}:`, err.message);
+            }
+            categories[category].push(commandName);
+        }
+    }
+
+    // Deduplicate just in case (should not happen)
+    for (const key in categories) {
+        categories[key] = [...new Set(categories[key])];
+    }
+
+    cachedCategories = categories;
+    return categories;
+}
+
+// ------------------- HELP EMBED BUILDERS -------------------
 function buildMainHelpEmbed(guild, user, prefix) {
+    const categories = loadDynamicCategories();
     const totalCommands = Object.values(categories).flat().length;
 
     const categoryLines = [];
     for (const [key, cmds] of Object.entries(categories)) {
+        if (cmds.length === 0) continue; // skip empty categories
         let categoryName;
         if (key === 'vcControls') {
             categoryName = 'VC Controls';
@@ -33,14 +115,14 @@ function buildMainHelpEmbed(guild, user, prefix) {
     }
 
     const description = [
-        `Hey ${user} ${emojis.hearts1}`, 
-        `Prefix: **${prefix}**`, 
-`Total commands: **${totalCommands}**`,
+        `Hey ${user} ${emojis.hearts1}`,
+        `Prefix: **${prefix}**`,
+        `Total commands: **${totalCommands}**`,
         '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
         ...categoryLines,
         '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───',
-        `[Invite Hermaca](https://discord.com/oauth2/authorize?client_id=${config.clientId}&permissions=8&integration_type=0&scope=applications.commands+bot)`, 
-`[Support Server](https://discord.gg/nVfAGH9G67)`,
+        `[Invite Hermaca](https://discord.com/oauth2/authorize?client_id=${config.clientId}&permissions=8&integration_type=0&scope=applications.commands+bot)`,
+        `[Support Server](https://discord.gg/nVfAGH9G67)`,
         '─── ⋆⋅☆⋅⋆ ─── ⋆⋅☆⋅⋆ ───'
     ].join('\n');
 
@@ -77,6 +159,7 @@ function buildCategoryEmbed(guild, categoryKey, categoryName, commands, user, pr
 }
 
 function getHelpActionRows(currentCategory = null) {
+    const categories = loadDynamicCategories();
     const homeButton = new ButtonBuilder()
         .setCustomId('help_home')
         .setLabel('Home')
@@ -85,48 +168,53 @@ function getHelpActionRows(currentCategory = null) {
 
     const row1 = new ActionRowBuilder().addComponents(homeButton);
 
+    // Build select menu options dynamically
+    const options = [];
+    const categoryDisplay = {
+        music: 'Music',
+        stats: 'Stats',
+        spotify: 'Spotify',
+        vcControls: 'VC Controls',
+        utility: 'Utility',
+        customisation: 'Customisation'
+    };
+
+    for (const [key, cmds] of Object.entries(categories)) {
+        if (cmds.length === 0) continue;
+        const label = categoryDisplay[key] || (key.charAt(0).toUpperCase() + key.slice(1));
+        options.push({
+            label: label,
+            value: key,
+            emoji: emojis.greensparkles,
+            default: currentCategory === key
+        });
+    }
+
     const selectMenu = new StringSelectMenuBuilder()
         .setCustomId('help_category')
         .setPlaceholder('> Choose a category')
-        .addOptions([{
-                    label: 'Music',
-                    value: 'music',
-                    emoji: emojis.greensparkles
-                }, {
-                    label: 'Stats',
-                    value: 'stats',
-                    emoji: emojis.greensparkles
-                }, {
-                    label: 'Spotify',
-                    value: 'spotify',
-                    emoji: emojis.greensparkles
-                }, {
-                    label: 'VC Controls',
-                    value: 'vcControls',
-                    emoji: emojis.greensparkles
-                }, {
-                    label: 'Utility',
-                    value: 'utility',
-                    emoji: emojis.greensparkles
-                }, {
-                    label: 'Customisation',
-                    value: 'customisation',
-                    emoji: emojis.greensparkles
-                }
-            ]);
-
-    if (currentCategory) {
-        const options = selectMenu.options;
-        for (let i = 0; i < options.length; i++) {
-            if (options[i].data.value === currentCategory) {
-                options[i].data.default = true;
-                break;
-            }
-        }
-    }
+        .addOptions(options);
 
     const row2 = new ActionRowBuilder().addComponents(selectMenu);
     return [row1, row2];
+}
+function memberCountEmbed(guild, counts, requester) {
+    return new EmbedBuilder()
+        .setColor(config.embedColor)
+        .setAuthor({
+            name: guild.name,
+            iconURL: guild.iconURL() || undefined
+        })
+        .setDescription(
+            `${emojis.whitearrow} **Users:** ${counts.userCount}\n` +
+            `${emojis.whitearrow} **Bots:** ${counts.botCount}\n` +
+            `${emojis.whitearrow} **Total members:** ${counts.totalCount}`
+        )
+        .setFooter({
+            text: `Requested by ${requester.tag}`,
+            iconURL: requester.displayAvatarURL({ dynamic: true })
+        })
+        .setTimestamp();
 }
 async function sendLyricsEmbeds(channel, lyrics, source, trackArtist, trackTitle, requester) {
     const MAX_LENGTH = 3150;
@@ -174,12 +262,63 @@ async function sendLyricsEmbeds(channel, lyrics, source, trackArtist, trackTitle
 }
 
 module.exports = {
-    success: (channel, message) => {
-        return channel.send(`${emojis.success} | ${message}`);
+    success: (target, message) => {
+        if (!message || !target) return Promise.resolve(); // Skip empty messages
+        const content = `${emojis.success} | ${message}`;
+        if (!content || content.trim().length === 0) return Promise.resolve(); // Skip if content is empty
+        // If target is an interaction (slash command)
+        if (target && typeof target.editReply === 'function') {
+            // If already replied or deferred, use editReply, otherwise use reply
+            if (target.replied || target.deferred) {
+                return target.editReply(content).catch(() => Promise.resolve());
+            } else {
+                return target.reply(content).catch(() => Promise.resolve());
+            }
+        }
+        // If target is a message (prefix command)
+        if (target && typeof target.reply === 'function') {
+            return target.reply(content).catch(() => Promise.resolve());
+        }
+        // Fallback: assume it's a channel
+        const channel = target.channel || target;
+        return channel.send(content).catch(() => Promise.resolve());
     },
-
-    error: (channel, message) => {
-        return channel.send(`${emojis.error} | ${message}`);
+    error: (target, message) => {
+        if (!message || !target) return Promise.resolve(); // Skip empty messages
+        const content = `${emojis.error} | ${message}`;
+        if (!content || content.trim().length === 0) return Promise.resolve(); // Skip if content is empty
+        if (target && typeof target.editReply === 'function') {
+            if (target.replied || target.deferred) {
+                return target.editReply(content).catch(() => Promise.resolve());
+            } else {
+                return target.reply(content).catch(() => Promise.resolve());
+            }
+        }
+        if (target && typeof target.reply === 'function') {
+            return target.reply(content).catch(() => Promise.resolve());
+        }
+        const channel = target.channel || target;
+        return channel.send(content).catch(() => Promise.resolve());
+    },
+    info: (target, message) => {
+        if (!message || !target) return Promise.resolve(); // Skip empty messages
+        const content = `${emojis.info} | ${message}`;
+        if (!content || content.trim().length === 0) return Promise.resolve(); // Skip if content is empty
+        if (target && typeof target.editReply === 'function') {
+            return target.editReply(content).catch(() => Promise.resolve());
+        }
+        const channel = target.channel || target;
+        return channel.send(content).catch(() => Promise.resolve());
+    },
+    loading: (target, message) => {
+        if (!message || !target) return Promise.resolve(); // Skip empty messages
+        const content = `${emojis.loading} | ${message}`;
+        if (!content || content.trim().length === 0) return Promise.resolve(); // Skip if content is empty
+        if (target && typeof target.editReply === 'function') {
+            return target.editReply(content).catch(() => Promise.resolve());
+        }
+        const channel = target.channel || target;
+        return channel.send(content).catch(() => Promise.resolve());
     },
 
     filterHelp: (channel) => {
@@ -322,7 +461,7 @@ module.exports = {
 
         embed.addFields({
             name: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
-            value: "",
+            value: " ",
             inline: false
         });
 
@@ -346,11 +485,11 @@ module.exports = {
 
         embed.addFields({
             name: `${emojis.music} Playlist created on: ${creationDate}`,
-            value: "",
+            value: " ",
             inline: false
         }, {
             name: `${emojis.music} Number of tracks: ${trackCount} tracks`,
-            value: "",
+            value: " ",
             inline: false
         })
         .setFooter({
@@ -475,7 +614,7 @@ module.exports = {
 
 		const TRACKS_PER_PAGE = 8;
 		const totalPages = Math.ceil(queue.length / TRACKS_PER_PAGE);
-		if (totalPages === 0 && !currentTrack) {
+		if (queue.length === 0) {
 			const emptyEmbed = new EmbedBuilder()
 				.setColor(config.embedColor)
 				.setTitle(`${emojis.star} Queue List`)
@@ -489,13 +628,13 @@ module.exports = {
 			}
 		}
 		const allTracks = currentTrack ? [currentTrack, ...queue] : queue;
-		const totalDuration = allTracks.reduce((acc, track) => {
-			const duration = track?.info?.length;
-			if (duration && duration > 0 && !track?.info?.stream && !track?.info?.isStream) {
-				return acc + duration;
-			}
-			return acc;
-		}, 0);
+		const totalDuration = queue.reduce((acc, track) => {
+        const duration = track?.info?.length;
+        if (duration && duration > 0 && !track?.info?.stream && !track?.info?.isStream) {
+            return acc + duration;
+        }
+        return acc;
+    }, 0);
 		const streamCount = queue.filter(t => t.info.isStream).length;
 		const durationText = streamCount > 0
 			? `${formatDuration(totalDuration)} (${streamCount} streams)`
@@ -1455,9 +1594,10 @@ module.exports = {
             embeds: [embed]
         });
     },
-    sendLyricsEmbeds,
+    loadDynamicCategories,
     buildMainHelpEmbed,
     buildCategoryEmbed,
     getHelpActionRows,
-    categories
+    memberCountEmbed,
+    sendLyricsEmbeds
 };

@@ -1,0 +1,473 @@
+Hermaca Discord Bot – Complete Guide
+=====================================
+
+1. Overview
+-----------
+Hermaca is a feature-rich Discord music bot built with discord.js v14, Riffy (Lavalink client), and MongoDB for persistence.
+It supports both slash commands and prefix commands, and includes many extra utilities (AFK, avatars, quotes, counting game,
+statistics tracking, etc.). The code is modular, with each command in its own file and helper functions separated into utility folders.
+
+2. Project Structure
+---------------------
+root/
+├── config.js                 # Bot configuration (token, clientId, ownerId, Lavalink nodes, etc.)
+├── database.js               # MongoDB wrapper – all database operations
+├── index.js                  # Main entry point – client setup, event handlers, login
+├── emojis.js                 # Custom emoji mapping
+├── stickers.js               # Sticker IDs for quick responses
+├── package.json              # Dependencies
+├── .env                      # Environment variables (tokens, URIs)
+│
+├── utils/                    # Shared utility functions
+│   ├── logger.js             # Coloured console logging with categories
+│   ├── formatting.js         # Duration formatting, thumbnail extraction
+│   ├── messages.js           # Embed builders and common message templates
+│   ├── permissions.js        # Permission helper functions (MoveMembers, etc.)
+│   ├── lyrics.js             # Lyrics fetching from Genius/Lyrics.ovh/LRCLIB with caching
+│   ├── quoteGenerator.js     # Image generation for quotes (text with avatar, etc.)
+│   ├── songQuoteGenerator.js # Image generation for song quotes (album art + text)
+│   ├── spotifyPlaylists.js   # Spotify API helpers to fetch playlists and tracks
+│   └── statusManager.js      # Dynamic presence management
+│
+├── helpers/                  # Client helper functions (attached to client)
+│   ├── clientHelpers.js      # Entry point – loads all funcs and exports them
+│   └── funcs/                # Individual helper modules
+│       ├── 24-7.js           # load24SevenData, enable24Seven, disable24Seven
+│       ├── inactivityTimer.js# startInactivityTimer, cancelInactivityTimer
+│       ├── rejoinAndIdle.js  # rejoinAndIdle (used after queue ends or stop)
+│       ├── voiceChannelStatus.js # setVoiceChannelStatus, clearVoiceChannelStatus, updatePlayerVoiceStatus
+│       ├── imageProcessing.js# imageUrlToBase64
+│       └── emojis.js         # resolveEmoji, replaceEmojiPlaceholders
+│
+├── handlers/                 # Core command handling logic
+│   ├── commandLoader.js      # Dynamically loads all commands from commands/ folders
+│   ├── commandValidator.js   # Central validation for owner, permissions, voice, player, etc.
+│   └── commandRegister.js    # Registers slash commands with Discord (reads slashCommands/)
+│
+├── commands/                 # Command execution files (both slash and prefix logic)
+│   ├── music/                # Music commands (play, pause, skip, etc.)
+│   ├── stats/                # Statistics commands (stats, mystats, leaderboard, resetmystats)
+│   ├── spotify/              # Spotify commands (setspotify, playspotify)
+│   ├── vcControls/           # Voice channel controls (join, leave, shift, mute, etc.)
+│   ├── utility/              # Utility commands (afk, avatar, banner, react, emoji, say, purge, count, quote, reveal, membercount)
+│   ├── customisation/        # Bot customisation commands (setavatar, setbanner, setname, setbio, resetprofile, setprefix)
+│   ├── admin/                # Owner-only commands (blacklist, unblacklist, makeowneradmin, noprefix)
+│   └── 24-7/                 # 24/7 mode (slash and prefix split)
+│
+├── slashCommands/            # Slash command definitions only (no logic)
+│   └── (mirrors the commands/ folder structure but with SlashCommandBuilder exports)
+│
+└── models/                   # (Optional) if you later add Mongoose schemas, but currently using raw MongoDB
+
+3. Key Files Explained
+----------------------
+
+3.1 index.js
+-------------
+- Purpose: Initialises the Discord client, attaches helpers, loads commands, sets up Riffy, and starts the bot.
+- Flow:
+  1. Loads environment variables, config, and logger.
+  2. Creates the Client instance with required intents.
+  3. Defines client properties (guildVolumes, inactivityTimers, etc.).
+  4. Attaches helper functions via Object.assign(client, require('./helpers/clientHelpers')).
+  5. Defines event handlers:
+     - client.once('clientReady'): connects to DB, loads guild volumes, initialises Riffy, loads commands (via commandLoader), auto‑connects 24/7 guilds, prints server list, registers slash commands (via commandRegister), sets presence, and starts periodic invite updates.
+     - client.on('interactionCreate'): handles autocomplete, slash command execution with validation from commandValidator.
+     - client.on('messageCreate'): handles prefix commands, bot mentions, noprefix mode, counting game, AFK removal, and AFK mention responses.
+  6. Sets up Riffy event listeners (nodeError, trackStart, queueEnd, etc.).
+  7. Listens for voice state updates to manage 24/7 reconnection and voice status.
+  8. Calls loginWithRetry to log in with retry logic.
+
+3.2 config.js
+-------------
+- Stores non‑sensitive configuration: prefix, ownerId, embedColor, Lavalink nodes, Spotify client credentials, and multiple bot instances' presence settings.
+- Used throughout the bot.
+
+3.3 database.js
+---------------
+- MongoDB wrapper using the official Node.js driver.
+- Methods for:
+  - Guild volumes (loadGuildVolumes, saveGuildVolumes)
+  - 24/7 data (load24SevenData, save24SevenData, enable24Seven, disable24Seven)
+  - Server invites (loadServersData, saveServersData, cleanupOldServers)
+  - Spotify IDs (loadSpotifyIds, saveSpotifyIds, getSpotifyId, setSpotifyId)
+  - User statistics (recordSongPlay, getUserStats, getUserRank, getLeaderboard, resetUserStats)
+  - AFK (setAFK, removeAFK, getAFK)
+  - Noprefix users (addNoPrefixUser, removeNoPrefixUser, getAllNoPrefixUsers, isNoPrefixUser, getNoprefixGlobalEnabled, setNoprefixGlobalEnabled)
+  - Counting game (getCountingConfig, setCountingChannel, disableCounting, setCountingToggleReset, setCountingStart, updateCountingAfterCorrect, resetCounting)
+  - Guild prefixes (getAllGuildPrefixes, getGuildPrefix, setGuildPrefix)
+  - Lyrics cache (getLyricsCache, saveLyricsCache, ensureLyricsIndex)
+  - Blacklist (addBlacklistedUser, removeBlacklistedUser, isBlacklisted, getAllBlacklistedUsers)
+- All collections are prefixed with BOT_IDENTIFIER (from env) to allow multiple bots sharing the same DB.
+
+3.4 utils/logger.js
+-------------------
+- Simple coloured logging with categories: log(category, message) and line() for separators.
+- Exports log, line, setBotReady (used by index.js).
+
+3.5 utils/messages.js
+---------------------
+- Contains a large set of functions to build embeds and send messages consistently.
+- Key functions: success, error, info, loading (all with automatic target detection).
+- Additional builders: nowPlaying, queueList, playingPlaylist, filterApplied, lyrics, userStatsEmbed, leaderboard, sendPlaylistSelector, and help embed builders.
+- Smart message handling: Functions automatically detect if target is an interaction (slash, uses editReply/reply) or a message object (prefix, uses reply).
+- Error resilience: All message sends have .catch() handlers to prevent uncaught promise rejections.
+- Used by all commands to output formatted responses with consistent emoji prefixes.
+
+3.6 utils/permissions.js
+------------------------
+- Helper functions to check if a user has specific permissions, taking owner override into account.
+- Functions: hasMoveMembersPermission, hasMuteMembersPermission, hasDeafenMembersPermission, hasManageMessagesPermission, hasAdminPermission.
+
+3.7 utils/lyrics.js
+-------------------
+- Fetches lyrics from Genius (with multiple API keys), lyrics.ovh, and LRCLIB.
+- Caches results in MongoDB for 30 days (TTL index).
+- Returns formatted lyrics with bolded section headers.
+
+3.8 utils/quoteGenerator.js & songQuoteGenerator.js
+---------------------------------------------------
+- Generate images using node-canvas.
+- quoteGenerator creates an image with a message content, author avatar, and optional custom text.
+- songQuoteGenerator creates an image with track title, artist, and custom text.
+
+3.9 utils/spotifyPlaylists.js
+-----------------------------
+- Spotify API wrapper to get user playlists and fetch all tracks from a playlist.
+- Uses client credentials flow; token cached and auto‑refreshed.
+
+3.10 utils/statusManager.js
+---------------------------
+- Dynamic presence (rich presence) based on which bot instance is running.
+- Replaces placeholders like {guilds} and {users}.
+
+3.11 helpers/clientHelpers.js
+-----------------------------
+- Dynamically loads all files from helpers/funcs/ and exports them as one object.
+- Used in index.js with Object.assign(client, clientHelpers).
+
+3.12 helpers/funcs/*
+--------------------
+- Each file exports one or more functions that become methods on the client object.
+- This allows commands to call e.g., client.load24SevenData().
+
+3.13 handlers/commandLoader.js
+------------------------------
+- Scans the commands/ folder recursively for .js files.
+- For each command, it stores in client.commands (if command.execute exists) and client.prefixCommands (if command.prefixExecute exists, plus aliases).
+- Used once during bot start.
+
+3.14 handlers/commandValidator.js
+---------------------------------
+- Exports validate(command, context, client, ownerId).
+- Checks:
+  - Owner (command.owner and context.user.id !== ownerId)
+  - User permissions (command.userPerms)
+  - Bot permissions (command.botPerms)
+  - Player existence (command.player and client.riffy.players.get(...))
+  - Bot in voice channel (command.inVoiceChannel)
+  - Same voice channel (command.sameVoiceChannel)
+- Returns an error message string if any check fails, otherwise null.
+
+3.15 handlers/commandRegister.js
+--------------------------------
+- Recursively reads slashCommands/ folder, collects all SlashCommandBuilder objects (exported as data or as an array), and registers them globally via REST API.
+- Uses the same logging style as the original index.js.
+
+3.16 commands/* (all command files)
+-----------------------------------
+Each command file exports an object with the following mandatory properties:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| name | string | Command name (used for slash and prefix). |
+| aliases | array (optional) | Alternative names for prefix command. |
+| description | string | Short description. |
+| category | string | Used for help categorization. |
+| owner | boolean | If true, only bot owner can use. |
+| userPerms | array | Discord permission flags the user must have. |
+| botPerms | array | Permissions the bot must have. |
+| player | boolean | Whether a player must exist (music playing). |
+| inVoiceChannel | boolean | Whether the bot must be in a voice channel. |
+| sameVoiceChannel | boolean | Whether the user must be in the same VC as the bot (implies inVoiceChannel). |
+| execute | function | Slash command logic – receives (interaction, client). |
+| prefixExecute | function (optional) | Prefix command logic – receives (message, args, client). |
+
+Example (commands/music/pause.js):
+
+    const messages = require('../../utils/messages.js');
+
+    module.exports = {
+        name: 'pause',
+        description: 'Pause the current track',
+        category: 'music',
+        owner: false,
+        userPerms: [],
+        botPerms: ['Connect', 'Speak'],
+        player: true,
+        inVoiceChannel: true,
+        sameVoiceChannel: true,
+        execute: async (interaction, client) => {
+            const player = client.riffy.players.get(interaction.guild.id);
+            if (!player) return await messages.error(interaction, "Nothing is playing!");
+            if (player.paused) return await messages.error(interaction, "Already paused!");
+            player.pause(true);
+            await messages.success(interaction, "Paused the music!");
+        },
+        prefixExecute: async (message, args, client) => {
+            const player = client.riffy.players.get(message.guild.id);
+            if (!player) return await messages.error(message, "Nothing is playing!");
+            if (player.paused) return await messages.error(message, "Already paused!");
+            player.pause(true);
+            await messages.success(message, "Paused the music!");
+        }
+    };
+
+3.17 slashCommands/*
+--------------------
+- Contains only the definition of slash commands, not the logic.
+- Each file exports either an object with data (a SlashCommandBuilder) or an array of them.
+- Example (slashCommands/music/pause.js):
+
+    const { SlashCommandBuilder } = require('discord.js');
+
+    module.exports = {
+        data: new SlashCommandBuilder()
+            .setName('pause')
+            .setDescription('Pause the current track')
+    };
+
+4. How the Bot Works
+--------------------
+
+4.1 Startup Sequence
+--------------------
+1. index.js loads config and env.
+2. Creates client and attaches helpers.
+3. Listens for ready event.
+4. On ready:
+   - Connects to MongoDB, gets cluster ID.
+   - Loads guild volumes, Spotify IDs, and guild prefixes.
+   - Initialises Riffy with Lavalink nodes.
+   - Loads commands via commandLoader.
+   - Fetches 24/7 data and reconnects to those voice channels.
+   - Updates server invites and prints server list.
+   - Registers slash commands via commandRegister.
+   - Sets presence via statusManager.
+   - Starts periodic invite refresh.
+
+4.2 Command Execution
+---------------------
+Slash Commands:
+- InteractionCreate → if it's a command, get command from client.commands.
+- Validate via commandValidator; if fails, send error.
+- Call command.execute(interaction, client).
+- Use messages.success/error/info(interaction, "text") to send responses.
+
+Prefix Commands:
+- messageCreate → check if message starts with guild prefix (or bot mention, or noprefix).
+- Get command from client.prefixCommands.
+- Validate similarly.
+- Call command.prefixExecute(message, args, client).
+- Use messages.success/error/info(message, "text") to send responses (NOT wrapped with message.reply).
+
+Important: NEVER wrap messages.* functions with message.reply() or message.channel.send(). The messages functions handle all sending internally and detect the target type automatically.
+
+4.3 Helper Functions
+--------------------
+All helpers are attached to client, so commands can call e.g., client.load24SevenData().
+They are located in helpers/funcs/ and loaded by clientHelpers.js.
+
+4.4 Database
+------------
+All collections are prefixed with BOT_IDENTIFIER (env) to separate data per bot instance.
+Key collections:
+- volumes
+- twentyfour_seven
+- servers
+- spotify-ids
+- user_stats
+- afk
+- noprefix_users
+- guild_prefixes
+- lyrics_cache
+- blacklisted_users
+- counting
+- settings (noprefix global flag)
+
+4.5 Music Player
+----------------
+- Powered by Lavalink through Riffy.
+- The client.riffy object holds players per guild.
+- Track events: trackStart, queueEnd, trackError, nodeError, etc.
+- Custom inactivity timer: after 5 minutes of idle, bot leaves voice channel (unless 24/7 enabled).
+
+4.6 24/7 Mode
+-------------
+- When enabled, the bot stays in the voice channel even when idle.
+- Data is stored in DB; on startup the bot reconnects to all enabled channels.
+- Disabling destroys the player and removes the flag.
+
+4.7 Voice Status
+----------------
+- The bot sets a voice channel status (the "Listening to …") via Discord API.
+- Updated on track start, track end, and when player becomes idle.
+
+4.8 Counting Game
+-----------------
+- A game where users post mathematical expressions that evaluate to the next number in sequence.
+- Supported operations: +, -, *, /, %, ^ (exponent), ! (factorial), sqrt().
+- Configurable channel, toggle reset on wrong count, and ability to set start number.
+- Admin only.
+
+4.9 AFK System
+--------------
+- Users can set an AFK reason with optional image.
+- When mentioned, the bot shows their AFK status.
+- Status auto‑removed when they send a message.
+
+4.10 Blacklist & Noprefix
+-------------------------
+- Owner can blacklist users from using the bot.
+- Noprefix allows certain users (or globally) to use commands without a prefix.
+
+5. Adding a New Command
+-----------------------
+1. Decide the category (e.g., utility).
+2. Create a new file in the appropriate subfolder of commands/.
+3. Write the command following the template (see 3.16).
+4. Create the slash command definition in the corresponding subfolder of slashCommands/ (same name). Export the SlashCommandBuilder as data.
+5. Restart the bot – commandLoader and commandRegister will pick up the new files automatically.
+
+Example: Adding a ping command
+------------------------------
+commands/utility/ping.js:
+
+    const messages = require('../../utils/messages.js');
+
+    module.exports = {
+        name: 'ping',
+        description: 'Show the bot\'s ping',
+        category: 'utility',
+        owner: false,
+        userPerms: [],
+        botPerms: [],
+        player: false,
+        inVoiceChannel: false,
+        sameVoiceChannel: false,
+        execute: async (interaction, client) => {
+            const wsLatency = Math.round(client.actualWsPing || client.ws.ping || 0);
+            const restLatency = Date.now() - interaction.createdTimestamp;
+            await messages.info(
+                interaction,
+                `Gateway Latency: ${wsLatency}ms\nREST Latency: ${restLatency}ms`
+            );
+        },
+        prefixExecute: async (message, args, client) => {
+            const msg = await message.reply({ content: 'Calculating ping...' });
+            const wsLatency = Math.round(client.actualWsPing || client.ws.ping || 0);
+            const restLatency = msg.createdTimestamp - message.createdTimestamp;
+            await messages.info(
+                msg,
+                `Gateway Latency: ${wsLatency}ms\nREST Latency: ${restLatency}ms`
+            );
+        }
+    };
+
+slashCommands/utility/ping.js:
+
+    const { SlashCommandBuilder } = require('discord.js');
+
+    module.exports = {
+        data: new SlashCommandBuilder()
+            .setName('ping')
+            .setDescription('Show the bot\'s ping')
+    };
+
+6. Modifying Existing Commands
+------------------------------
+- To change command logic, edit the .js file in commands/.
+- To change slash command options (e.g., add an option), edit the corresponding file in slashCommands/ and restart the bot (the registration will be updated automatically).
+- To change metadata (permissions, player requirement, etc.), edit the command file in commands/; no restart needed for prefix commands, but slash commands need the bot to be restarted to update the stored command (Discord caches the definition, but the validation is done at runtime so it works after restart).
+
+7. Common Tasks
+---------------
+- Adding a new Lavalink node: Edit config.js, add an object to the nodes array with host, port, password, etc. Riffy will automatically load balance.
+- Changing the prefix: Prefix is stored per guild in the database. The setprefix command changes it. Default prefix is from config.js.
+- Changing the bot's presence: Edit config.js under botInstances or defaultPresence. The statusManager picks the correct presence based on client ID.
+- Adding a new event (e.g., guildMemberAdd): Add a new listener in index.js (or move events to separate files later). Use client.on(...).
+- Adding a new utility function: If it should be available to all commands, place it in a new file in helpers/funcs/ and export the function(s). It will be automatically attached to client.
+
+8. Debugging Tips
+-----------------
+- All logs are coloured; check console for errors.
+- Use /debug command to see Lavalink node status and player info.
+- For Lavalink issues, check the node logs separately.
+- Database errors are logged with log('ERROR', ...).
+- Command validation errors are sent directly to the user as embeds via messages system.
+- When adding new commands using prefix logic, always use messages.error/success/info(message, "text") instead of message.reply() for consistency.
+- The messages system automatically appends emoji prefixes and handles all Discord API errors with .catch() handlers.
+
+9. Dependencies
+---------------
+Key packages:
+- discord.js (v14)
+- riffy (Lavalink client)
+- riffy-spotify (Spotify plugin)
+- mongodb
+- axios
+- canvas (for image generation)
+- genius-lyrics
+- dotenv
+
+10. File Index (Complete)
+-------------------------
+Root files
+----------
+index.js          Main entry point, client setup, event handlers, login
+config.js         Configuration (prefix, owner, nodes, etc.)
+database.js       MongoDB wrapper
+emojis.js         Emoji mapping (used in messages)
+stickers.js       Sticker IDs for quick commands
+.env              Environment variables (tokens, URIs)
+
+/utils/
+logger.js         Coloured console logging
+formatting.js     Format duration, extract thumbnail, get duration string
+messages.js       Embed builders and response helpers
+permissions.js    Permission checking functions
+lyrics.js         Fetch lyrics from various APIs with caching
+quoteGenerator.js Generate quote image from message
+songQuoteGenerator.js Generate song quote image
+spotifyPlaylists.js Spotify API helpers
+statusManager.js  Dynamic presence management
+
+/helpers/
+clientHelpers.js  Loads all helpers from /helpers/funcs/ and exports them
+funcs/24-7.js     Functions for 24/7 mode
+funcs/inactivityTimer.js Inactivity timer management
+funcs/rejoinAndIdle.js Rejoin and idle handling
+funcs/voiceChannelStatus.js Voice channel status setting/clearing
+funcs/imageProcessing.js Convert image URL to base64
+funcs/emojis.js   Emoji resolution and placeholder replacement
+
+/handlers/
+commandLoader.js  Scans and loads all command files
+commandValidator.js Central command validation (owner, perms, voice, player)
+commandRegister.js Registers slash commands with Discord
+
+/commands/ (subfolders)
+Each file inside these folders exports a command object with execute and/or prefixExecute.
+The structure mirrors the categories.
+
+/slashCommands/ (subfolders)
+Each file exports a SlashCommandBuilder (or array) – only the definition, no logic.
+
+11. Final Notes
+---------------
+- The bot is designed to be modular and scalable. Adding new commands or features requires only creating new files in the appropriate folders; the loaders handle the rest.
+- All database operations are centralised in database.js.
+- Helper functions attached to client make them accessible anywhere without passing them explicitly.
+- The validator ensures that commands only run when all conditions are met, reducing boilerplate code in each command.
+
+With this guide, you or any other developer can confidently navigate the codebase and make changes.
