@@ -113,7 +113,7 @@ A feature-rich Discord music bot built with Discord.js, Riffy, and Lavalink. Thi
 ## Screenshots of a user using the Bot
 
 ### Now Playing
-![Now Playing](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/now_playing.png?raw=true)
+![Now Playing](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/now%20playing.png?raw=true)
 
 ### Help
 ![Help](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/help.png?raw=true)
@@ -132,52 +132,52 @@ A feature-rich Discord music bot built with Discord.js, Riffy, and Lavalink. Thi
 ![Statistics](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/stats.png?raw=true)
 
 ### Lyrics display
-![Lyrics]()
+![Lyrics](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/lyrics.png?raw=true)
 
 ### Audio filters
 
 #### Nightcore
-![Nightcore Fitler]()
+![Nightcore Fitler](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/filter%20nightcore.png?raw=true)
 
 #### Darthvader
-![Darthvader Filter]()
+![Darthvader Filter](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/filter%20darthvader.png?raw=true)
 
 #### Slowreverb
-![16d filter]()
+![16d filter](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/filter%2016d.png?raw=true)
 
 #### Clearing the filters
-![Clear all fitlers]()
+![Clear all fitlers](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/filter%20clear.png?raw=true)
 
 ### Spotify Playlist integration**
-![Spotify]
+![Spotify](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/spotify.png?raw=true)
 
 ### Customizing the Bot's Server Profile
 
 #### Custom avatar
-![SetAvatar]()
+![SetAvatar](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/setavatar.png?raw=true)
 
 #### Custom banner
-![SetBanner]()
+![SetBanner](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/setbanner.png?raw=true)
 
 #### Custom bio and change display name
-![SetBio and SetName]()
+![SetBio and SetName](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/setname%20and%20setbio.png?raw=true)
 
 #### Final result
-![Initial to Final Profile]()
+![Initial to Final Profile](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/initial%20to%20final.png?raw=true)
 
 ### Awesome AFK
-![AFK]()
+![AFK](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/afk.png?raw=true)
 
 ### Voice Channel Status
 
 #### When playing a song
-![Current song voice status]()
+![Current song voice status](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/vc%20status%20-%20song%20is%20playing.png?raw=true)
 
-#### When nothing is playing AND 24/7 is NOT enabled
-![Idle voice status]()
+#### When nothing is playing AND 24/7 is NOT enabled (IDLE)
+![Idle voice status](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/vc%20status%20-%20idle.png?raw=true)
 
 #### When nothing is playing BUT 24/7 is enabled
-![24/7 voice status]()
+![24/7 voice status](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/vc%20status%20-%2024-7.png?raw=true)
 
 ###### Thanks to aanya.45 for using the commands of the bot and providing these beautiful screenshots!
 
