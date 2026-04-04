@@ -5,51 +5,110 @@ A feature-rich Discord music bot built with Discord.js, Riffy, and Lavalink. Thi
 ## Features
 
 - 🎵 **High-quality music playback** – Crystal clear audio from YouTube and Spotify
-- 🎮 **Slash Commands** – Full support for slash commands for easy access
-- 📋 **Queue management** – Move, insert, remove, and reorder tracks
-- 🔁 **Loop & shuffle** – Toggle queue looping and shuffle your playlist
-- 🔊 **Volume control** – Per-player volume and server-wide persistent volume
-- 🎛️ **Audio filters** – Add effects like nightcore, vaporwave, deepbass, etc.
-- 📜 **Lyrics display** – Fetch and show lyrics for current track
-- 📊 **Statistics** – Personal listening stats and global leaderboard
-- 🎨 **Song quotes** – Create aesthetic quote images with current track
-- 🕒 **24/7 mode** – Keep bot in voice channel around the clock
-- 🖼️ **Beautiful embeds** – Clean and stylish embed messages
+- 🎮 **Slash Commands & Prefix Commands** – Full support for both slash commands and traditional prefix commands
+- 📋 **Advanced queue management** – Move, insert, remove, reorder, shuffle, and skip to specific positions
+- 🔁 **Loop & shuffle** – Toggle queue looping and randomize your playlist
+- 🔊 **Dynamic volume control** – Per-player volume and server-wide persistent volume settings
+- 🎛️ **20+ audio filters** – Nightcore, vaporwave, deepbass, 8D, bass boost, distortion, karaoke, lofi, and more
+- 📜 **Lyrics display** – Fetch and display lyrics for current track in real-time
+- 📊 **Statistics system** – Track personal listening stats across all servers with global leaderboard
+- 🎨 **Quote generation** – Create aesthetic quote images with current track information
+- 🎤 **Voice channel controls** – Mute, deafen, disconnect, and manage users in voice channels
+- 🕒 **24/7 mode** – Keep bot in voice channel around the clock with persistent playback
+- 👤 **Server customization** – Customize bot's nickname, avatar, banner, and bio per server
+- ☁️ **Spotify integration** – Play your saved Spotify playlists and set Spotify username
+- 🔧 **Developer tools** – User blacklisting, prefixless mode, admin role management
+- 🖼️ **Beautiful embeds** – Clean and stylish embed messages with helpful information
 
 ## Commands
 
+### 🎵 Music Commands
 | Command | Description |
 |---------|-------------|
-| `/play <query>` | Play a song or playlist |
+| `/play <query>` | Play a song or playlist from YouTube/Spotify |
 | `/pause` | Pause the current track |
 | `/resume` | Resume the current track |
 | `/skip` | Skip the current track |
-| `/stop` | Stop playback and clear queue |
-| `/lyrics` | Show the lyrics of the current track |
-| `/queue` | Show the current queue |
-| `/nowplaying` | Show current track info |
+| `/skipto <position>` | Skip to a specific track in the queue |
+| `/stop` | Stop playback and clear the queue |
+| `/queue` / `/q` | Show the current queue |
+| `/nowplaying` | Show current track information |
 | `/volume <0-100>` | Adjust player volume |
 | `/servervolume <0-100>` | Set permanent volume for this server |
-| `/filter <type>` | Add different filters to playback |
+| `/filter <type>` | Add audio filters (nightcore, vaporwave, bass, 8D, etc.) |
 | `/shuffle` | Shuffle the current queue |
 | `/loop` | Toggle queue loop mode |
-| `/move <from> <to>` | Move a song in the queue |
+| `/move <from> <to>` | Move a song to a different position in queue |
 | `/add <song> <position>` | Add a track at specific position |
 | `/remove <position>` | Remove a track from queue |
-| `/clear` | Clear the current queue |
-| `/status` | Show player status |
-| `/ping` | Show the bot's ping |
-| `/mystats` | View your personal music statistics |
-| `/leaderboard` | Global ranking of top listeners |
-| `/resetmystats` | Reset your personal statistics |
-| `/setspotify <username>` | Set your Spotify username |
-| `/playspotify` | Play your saved Spotify playlists |
-| `/24-7-enable` | Enable 24/7 mode in a voice channel |
-| `/24-7-disable` | Disable 24/7 mode |
-| `/song-quote <text>` | Create a quote image with current track |
-| `/help` | Show this help message |
+| `/clear` | Clear the entire queue |
+| `/lyrics` | Show the lyrics of the current track |
+| `/song-quote <text>` | Create an aesthetic quote image with current track |
+| `/status` | Show current player status and statistics |
 
-> **Note:** All commands work as slash commands! Traditional prefix commands (`~`) are also available.
+### ☁️ Spotify Commands
+| Command | Description |
+|---------|-------------|
+| `/playspotify` | Play your saved Spotify playlists |
+| `/setspotify <username>` | Set your Spotify username for playlist access |
+
+### 🎤 Voice Channel Controls
+| Command | Description |
+|---------|-------------|
+| `/join [channel]` | Make the bot join a voice channel |
+| `/leave` | Make the bot leave the voice channel |
+| `/disconnect [user]` | Disconnect a user from voice channel (or yourself) |
+| `/mute <user>` | Mute a user in voice channel |
+| `/unmute <user>` | Unmute a user in voice channel |
+| `/deafen <user>` | Deafen a user in voice channel |
+| `/undeafen <user>` | Undeafen a user in voice channel |
+| `/rejoin` | Make the bot leave and rejoin the current voice channel |
+| `/shift <user> <channel>` | Move a user to another voice channel |
+
+### 📊 Statistics Commands
+| Command | Description |
+|---------|-------------|
+| `/mystats` | View your personal music statistics across all servers |
+| `/stats [user]` | View your or another user's music statistics |
+| `/leaderboard` | View global ranking of top listeners |
+| `/resetmystats` | Reset your personal statistics (irreversible!) |
+
+### 🎨 Customization Commands
+| Command | Description |
+|---------|-------------|
+| `/setprefix <prefix>` | Change the bot's command prefix for this server |
+| `/setname <name>` | Change the bot's server nickname |
+| `/setavatar <url>` | Change the bot's server avatar |
+| `/setbanner <url>` | Change the bot's server banner |
+| `/setbio <text>` | Set the bot's server profile bio (About Me) |
+| `/resetprofile` | Reset the bot's server profile to global defaults |
+
+### 🕒 24/7 Mode Commands
+| Command | Description |
+|---------|-------------|
+| `/24-7` | Enable or disable 24/7 mode |
+| `/24-7-enable` | Enable 24/7 mode in current voice channel |
+| `/24-7-disable` | Disable 24/7 mode |
+
+### ℹ️ Info & Utility Commands
+| Command | Description |
+|---------|-------------|
+| `/help [command]` | Show all commands or get help for a specific command |
+| `/ping` | Show the bot's ping and latency |
+| `/debug` | Show bot status, uptime, and system information |
+| `/afk <reason> [image]` | Set your AFK status with optional reason and image |
+| `/avatar [user]` | View a user's avatar |
+| `/banner [user]` | View a user's server banner |
+| `/emoji <emoji...>` | Send emoji(s) as text |
+| `/membercount` | Show the number of members, users, and bots in the server |
+| `/count` | Manage the counting game |
+| `/quote [message]` | Generate a quote image from a message |
+| `/react <emoji>` | React to a message with an emoji (reply to a message) |
+| `/reveal` | Reveal spoiler text in a message (reply to a message) |
+| `/say <text>` | Make the bot say something |
+| `/purge <amount>` | Delete messages in bulk |
+
+> **Note:** All commands work as slash commands! Traditional prefix commands are also available (default prefix: `~`)
 
 ## Screenshots of a user using the Bot
 
@@ -74,26 +133,64 @@ A feature-rich Discord music bot built with Discord.js, Riffy, and Lavalink. Thi
 
 ###### Thanks to anvesha.67 for using the commands of the bot and providing these beautiful screenshots!
 
+---
+
+## Recommended Additional Screenshots 📸
+
+Consider adding screenshots for:
+1. **Lyrics Display** – Show the `/lyrics` command output
+2. **Audio Filters** – Demonstrate applied filters (nightcore, vaporwave, deepbass, etc.)
+3. **Voice Channel Controls** – Show mute/deafen/disconnect features
+4. **Spotify Playlist Integration** – Display `/playspotify` in action
+5. **User Profile Customization** – Show server-specific avatar/banner/bio customization
+6. **Message Quote Generation** – The `/quote` command output (different from song-quote)
+7. **AFK Status** – Display `/afk` with reason and optional image
+8. **Member Information** – Show `/membercount` output
+9. **24/7 Mode Status** – Visual representation of persistent bot presence
+10. **Leaderboard** – Show the `/leaderboard` global stats view
+
+These screenshots would help users understand the full range of features your bot offers!
+
 <hr>
 
-## .env file format
+## .env File Format
 
+Create a `.env` file in the root directory with the following variables:
+
+```env
+# Discord Bot Configuration
+DISCORD_TOKEN=<Bot's_Token>
+DISCORD_CLIENT_ID=<Bot's_Client_ID>
+
+# Spotify API (for playlist playback)
+SPOTIFY_CLIENT_ID=<Spotify_Client_ID>
+SPOTIFY_CLIENT_SECRET=<Spotify_Client_Secret>
+
+# Genius API (for lyrics fetching)
+GENIUS_TOKEN=<Genius_token>:<Identifier>|<Genius_token2>:<Identifier>
+
+# MongoDB Database
+MONGO_URI=<MongoDB_Connection_String>
+BOT_IDENTIFIER=<Unique_Identifier_For_Collections>
 ```
-// Replace <...> with actual values!
-DISCORD_TOKEN= <Token_of_BOT>
-DISCORD_CLIENT_ID= <ClientID_of_BOT>
-SPOTIFY_CLIENT_SECRET= <Client_Secret for Spotify Playback>
-SPOTIFY_CLIENT_ID= <Client_ID for Spotify Playback>
-GENIUS_TOKEN= <Genius_TOKEN for Lyrics>
-MONGO_URI= <URI for MongoDB connection>
-BOT_IDENTIFIER= <random_indentifier For MongoDB collection(s) name>
-```
+
+**Where to get these tokens:**
+- **Discord Token**: [Discord Developer Portal](https://discord.com/developers/applications)
+- **Spotify Credentials**: [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+- **Genius Token**: [Genius API](https://genius.com/api-clients)
+- **MongoDB**: [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+
+## Prerequisites
+- Node.js v16.9.0 or higher
+- npm or yarn
+- [MongoDB](https://mongodb.com) database
+- Discord Bot token from [Discord Developer Portal](https://discord.com/developers/applications)
 
 ## Support
 
 - 📌 [GitHub Issues](https://github.com/RXS-reyansh/Hermaca-Music-Bot/issues)
 - 💬 [Discord Support Server](https://discord.gg/nVfAGH9G67)
-- ✨ Author's Discord Username - __reyansh__
+- ✨ Author's Discord Username – \__reyansh__
 
 ## Contributing
 
