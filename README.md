@@ -108,7 +108,7 @@ A feature-rich Discord music bot built with Discord.js, Riffy, and Lavalink. Thi
 | `/say <text>` | Make the bot say something |
 | `/purge <amount>` | Delete messages in bulk |
 
-> **Note:** All commands work as slash commands! Traditional prefix commands are also available (default prefix: `~`)
+> **Note:** All commands work as BOTH slash and traditional prefix commands (default prefix: `~`)
 
 ## Screenshots of a user using the Bot
 
@@ -131,25 +131,55 @@ A feature-rich Discord music bot built with Discord.js, Riffy, and Lavalink. Thi
 ### Statistics of a user
 ![Statistics](https://github.com/RXS-reyansh/Hermaca-Music-Bot/blob/main/images/stats.png?raw=true)
 
-###### Thanks to anvesha.67 for using the commands of the bot and providing these beautiful screenshots!
+### Lyrics display
+![Lyrics]()
 
----
+### Audio filters
 
-## Recommended Additional Screenshots 📸
+#### Nightcore
+![Nightcore Fitler]()
 
-Consider adding screenshots for:
-1. **Lyrics Display** – Show the `/lyrics` command output
-2. **Audio Filters** – Demonstrate applied filters (nightcore, vaporwave, deepbass, etc.)
-3. **Voice Channel Controls** – Show mute/deafen/disconnect features
-4. **Spotify Playlist Integration** – Display `/playspotify` in action
-5. **User Profile Customization** – Show server-specific avatar/banner/bio customization
-6. **Message Quote Generation** – The `/quote` command output (different from song-quote)
-7. **AFK Status** – Display `/afk` with reason and optional image
-8. **Member Information** – Show `/membercount` output
-9. **24/7 Mode Status** – Visual representation of persistent bot presence
-10. **Leaderboard** – Show the `/leaderboard` global stats view
+#### Darthvader
+![Darthvader Filter]()
 
-These screenshots would help users understand the full range of features your bot offers!
+#### Slowreverb
+![16d filter]()
+
+#### Clearing the filters
+![Clear all fitlers]()
+
+### Spotify Playlist integration**
+![Spotify]
+
+### Customizing the Bot's Server Profile
+
+#### Custom avatar
+![SetAvatar]()
+
+#### Custom banner
+![SetBanner]()
+
+#### Custom bio and change display name
+![SetBio and SetName]()
+
+#### Final result
+![Initial to Final Profile]()
+
+### Awesome AFK
+![AFK]()
+
+### Voice Channel Status
+
+#### When playing a song
+![Current song voice status]()
+
+#### When nothing is playing AND 24/7 is NOT enabled
+![Idle voice status]()
+
+#### When nothing is playing BUT 24/7 is enabled
+![24/7 voice status]()
+
+###### Thanks to aanya.45 for using the commands of the bot and providing these beautiful screenshots!
 
 <hr>
 
